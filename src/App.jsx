@@ -6,13 +6,14 @@ import { getDatabase, ref, onValue, set, update } from "firebase/database";
 // ⚠️ 以下の値をSTEP2でメモしたあなたの設定情報に書き換えてください
 const firebaseConfig = {
   apiKey: "AIzaSyBgBNN2HvEbk46wtpsOhBJuJtbJHOAxEXU",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  databaseURL: "YOUR_DATABASE_URL",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  authDomain: "wedding-quiz-c4847.firebaseapp.com",
+  databaseURL: "https://wedding-quiz-c4847-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "wedding-quiz-c4847",
+  storageBucket: "wedding-quiz-c4847.firebasestorage.app",
+  messagingSenderId: "952715831939",
+  appId: "1:952715831939:web:c50e18ac4848659f7e89b6"
 };
+
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
