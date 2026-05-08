@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -230,7 +231,7 @@ function ParticipantResultScreen({ nickname, score }) {
         <div className="divider" />
         <p style={{ color:"rgba(245,234,208,.6)", fontSize:".88rem" }}>{nickname} さんの結果</p>
         <div style={{ margin:"20px 0", background:"rgba(201,168,76,.08)", borderRadius:12, padding:"24px 16px" }}>
-          <div className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"4.5rem", fontWeight:300, lineHeight:1 }}>
+          <div className="gold" style={{ fontFamily:"'Noto Serif JP'", fontSize:"4.5rem", fontWeight:600, lineHeight:1, letterSpacing:".05em" }}>
             {score}<span style={{ fontSize:"1.4rem" }}>点</span>
           </div>
           <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", marginTop:6 }}>10問中 {score}問正解</p>
@@ -638,3 +639,4 @@ export default function App() {
     </>
   );
 }
+
