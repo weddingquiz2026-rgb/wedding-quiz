@@ -35,7 +35,7 @@ const Styles = () => (
     :root {
       --gold: #c9a84c; --gold-l: #e8c97a; --gold-d: #8b6914;
       --cream: #f5ead0; --bg: #140f05; --bg2: #1e1508; --bg3: #281c0c;
-      --maru: #c94c4c; --batsu: #4c7ac9;
+      --yes: #4caf50; --no: #c94c4c;
     }
     @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
     @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
@@ -53,12 +53,12 @@ const Styles = () => (
     .btn-gold:disabled { opacity:.35; cursor:not-allowed; transform:none; filter:none; }
     .btn-outline { background:transparent; border:1px solid var(--gold-d); color:var(--gold); }
     .btn-outline:hover { background:rgba(201,168,76,.1); }
-    .btn-maru { background:linear-gradient(135deg,#a03030,var(--maru)); color:#fff; font-size:2.5rem; width:90px; height:90px; border-radius:50%; border:none; cursor:pointer; transition:all .2s; }
-    .btn-maru:hover:not(:disabled) { filter:brightness(1.2); transform:scale(1.06); }
-    .btn-batsu { background:linear-gradient(135deg,#2a4a90,var(--batsu)); color:#fff; font-size:2.5rem; width:90px; height:90px; border-radius:50%; border:none; cursor:pointer; transition:all .2s; }
-    .btn-batsu:hover:not(:disabled) { filter:brightness(1.2); transform:scale(1.06); }
-    .sel-maru { outline:3px solid var(--maru); outline-offset:4px; }
-    .sel-batsu { outline:3px solid var(--batsu); outline-offset:4px; }
+    .btn-yes { background:linear-gradient(135deg,#2a7a2a,#4caf50); color:#fff; font-size:1.2rem; font-weight:700; width:110px; height:110px; border-radius:16px; border:none; cursor:pointer; transition:all .2s; font-family:inherit; }
+    .btn-yes:hover:not(:disabled) { filter:brightness(1.15); transform:scale(1.04); }
+    .btn-no { background:linear-gradient(135deg,#7a2a2a,#c94c4c); color:#fff; font-size:1.2rem; font-weight:700; width:110px; height:110px; border-radius:16px; border:none; cursor:pointer; transition:all .2s; font-family:inherit; }
+    .btn-no:hover:not(:disabled) { filter:brightness(1.15); transform:scale(1.04); }
+    .sel-yes { outline:3px solid #4caf50; outline-offset:4px; }
+    .sel-no { outline:3px solid #c94c4c; outline-offset:4px; }
     input[type=text],input[type=password],textarea { background:rgba(255,255,255,.05); border:1px solid var(--gold-d); border-radius:8px; color:var(--cream); font-family:inherit; font-size:.95rem; padding:10px 14px; width:100%; outline:none; transition:border-color .2s; resize:vertical; }
     input:focus,textarea:focus { border-color:var(--gold); }
     input::placeholder,textarea::placeholder { color:rgba(245,234,208,.3); }
@@ -102,7 +102,7 @@ function WelcomeScreen({ onJoin, onHost }) {
       <p style={{ color:"rgba(245,234,208,.55)", fontSize:".85rem", marginTop:8, letterSpacing:".2em" }}>ふたりのことを、どれだけ知っていますか？</p>
       <Ornament />
       <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300, marginTop:8 }}>
-        <button className="btn btn-gold" style={{ fontSize:"1.05rem", padding:16 }} onClick={onJoin}>○× クイズに参加する</button>
+        <button className="btn btn-gold" style={{ fontSize:"1.05rem", padding:16 }} onClick={onJoin}>Yes/No クイズに参加する</button>
         <button className="btn btn-outline" style={{ fontSize:".8rem" }} onClick={onHost}>進行者はこちら</button>
       </div>
     </div>
@@ -178,8 +178,8 @@ function QuizScreen({ question, qNum, myAnswer, onAnswer }) {
           {question.text}
         </p>
         <div style={{ display:"flex", gap:20, justifyContent:"center" }}>
-          <button className={`btn-maru ${selected===true?"sel-maru":""}`} onClick={()=>choose(true)}>○</button>
-          <button className={`btn-batsu ${selected===false?"sel-batsu":""}`} onClick={()=>choose(false)}>×</button>
+          <button className={`btn-yes ${selected===true?"sel-yes":""}`} onClick={()=>choose(true)}>Yes</button>
+          <button className={`btn-no ${selected===false?"sel-no":""}`} onClick={()=>choose(false)}>No</button>
         </div>
         {selected !== null && (
           <p style={{ marginTop:20, color:"var(--gold)", fontSize:".82rem", animation:"fadeUp .4s ease" }}>
@@ -203,7 +203,7 @@ function AnswerRevealScreen({ question, myAnswer }) {
           {question.text}
         </p>
         <div style={{ fontSize:"5rem", margin:"16px 0", animation:"slideIn .5s ease" }}>
-          {correct === true ? "○" : "×"}
+          {correct === true ? "Yes" : "No"}
         </div>
         <div style={{ padding:"14px", borderRadius:12,
           background: isCorrect ? "rgba(201,168,76,.12)" : "rgba(201,76,76,.1)",
@@ -212,7 +212,7 @@ function AnswerRevealScreen({ question, myAnswer }) {
             {isCorrect ? "🎉 正解！" : "😢 不正解…"}
           </p>
           <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", marginTop:4 }}>
-            あなたの回答: {myAnswer === true ? "○" : myAnswer === false ? "×" : "未回答"}
+            あなたの回答: {myAnswer === true ? "Yes" : myAnswer === false ? "No" : "未回答"}
           </p>
         </div>
         <p style={{ marginTop:20, fontSize:".8rem", color:"rgba(245,234,208,.4)" }}>次の問題をお待ちください…</p>
@@ -282,7 +282,7 @@ function SetupTab({ quizState }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ padding:"12px 16px", borderRadius:10, background:"rgba(201,168,76,.07)", border:"1px solid rgba(139,105,20,.4)", fontSize:".82rem", color:"rgba(245,234,208,.65)", lineHeight:1.9 }}>
         📝 事前に問題文を入力しておきましょう。<br/>
-        <strong style={{ color:"var(--gold)" }}>正解（○か×）は当日、新郎新婦の答えを聞いてから</strong>「② 当日進行」タブで入力します。
+        <strong style={{ color:"var(--gold)" }}>正解（YesかNo）は当日、新郎新婦の答えを聞いてから</strong>「② 当日進行」タブで入力します。
       </div>
       {texts.map((t,i)=>(
         <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
@@ -315,7 +315,7 @@ function LiveTab({ quizState, participants }) {
   }
 
   async function closeAndScore() {
-    if (liveAnswer === null) { alert("正解（○か×）を選択してください"); return; }
+    if (liveAnswer === null) { alert("正解（YesかNo）を選択してください"); return; }
     const qs = questions.map((q,i)=> i===current_q ? {...q, is_open:false, is_closed:true, answer:liveAnswer} : q);
     // Score participants
     for (const p of participants) {
@@ -366,8 +366,8 @@ function LiveTab({ quizState, participants }) {
               <div style={{ padding:"14px 16px", borderRadius:10, background:"rgba(201,168,76,.06)", border:"1px solid rgba(139,105,20,.5)", marginBottom:16 }}>
                 <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.7)", marginBottom:12 }}>🎤 新郎新婦の答えを聞いて、正解を入力：</p>
                 <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
-                  <button className={`btn-maru ${liveAnswer===true?"sel-maru":""}`} style={{ opacity:liveAnswer===false?.45:1 }} onClick={()=>setLiveAnswer(true)}>○</button>
-                  <button className={`btn-batsu ${liveAnswer===false?"sel-batsu":""}`} style={{ opacity:liveAnswer===true?.45:1 }} onClick={()=>setLiveAnswer(false)}>×</button>
+                  <button className={`btn-yes ${liveAnswer===true?"sel-yes":""}`} style={{ opacity:liveAnswer===false?.45:1 }} onClick={()=>setLiveAnswer(true)}>Yes</button>
+                  <button className={`btn-no ${liveAnswer===false?"sel-no":""}`} style={{ opacity:liveAnswer===true?.45:1 }} onClick={()=>setLiveAnswer(false)}>No</button>
                 </div>
               </div>
               <button className="btn btn-gold" style={{ width:"100%" }} onClick={closeAndScore} disabled={liveAnswer===null}>
@@ -540,8 +540,8 @@ function ProjectionScreen({ quizState, participants }) {
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
         <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {current_q+1} / 10 — 正解発表</p>
         <p style={{ fontSize:"clamp(1.2rem,3vw,2rem)", color:"rgba(245,234,208,.8)", lineHeight:1.8, maxWidth:800, marginBottom:40, fontFamily:"'Noto Serif JP'" }}>{q.text}</p>
-        <div style={{ fontSize:"clamp(6rem,20vw,12rem)", animation:"slideIn .5s ease", color: q.answer?"var(--maru)":"var(--batsu)" }}>
-          {q.answer === true ? "○" : "×"}
+        <div style={{ fontSize:"clamp(6rem,20vw,12rem)", animation:"slideIn .5s ease", color: q.answer?"var(--yes)":"var(--no)" }}>
+          {q.answer === true ? "Yes" : "No"}
         </div>
       </div>
     );
@@ -553,7 +553,7 @@ function ProjectionScreen({ quizState, participants }) {
       <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {current_q+1} / 10</p>
       <p style={{ fontSize:"clamp(1.5rem,4vw,2.8rem)", color:"var(--cream)", lineHeight:1.8, maxWidth:900, fontFamily:"'Noto Serif JP'", animation:"fadeUp .6s ease" }}>{q.text}</p>
       <div style={{ display:"flex", gap:60, marginTop:60, fontSize:"clamp(4rem,12vw,8rem)", color:"rgba(245,234,208,.2)" }}>
-        <span>○</span><span>×</span>
+        <span>Yes</span><span>No</span>
       </div>
       <p style={{ marginTop:40, color:"rgba(245,234,208,.4)", fontSize:"1rem", letterSpacing:".2em", animation:"pulse 1.5s ease infinite" }}>スマホで回答してください</p>
     </div>
