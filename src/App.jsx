@@ -1,35 +1,28 @@
-import { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, update } from "firebase/database";
+import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-// ========== FIREBASE CONFIG ==========
-// ⚠️ 以下の値をSTEP2でメモしたあなたの設定情報に書き換えてください
-const firebaseConfig = {
-  apiKey: "AIzaSyBgBNN2HvEbk46wtpsOhBJuJtbJHOAxEXU",
-  authDomain: "wedding-quiz-c4847.firebaseapp.com",
-  databaseURL: "https://wedding-quiz-c4847-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "wedding-quiz-c4847",
-  storageBucket: "wedding-quiz-c4847.firebasestorage.app",
-  messagingSenderId: "952715831939",
-  appId: "1:952715831939:web:c50e18ac4848659f7e89b6"
-};
+// ========== SUPABASE CONFIG ==========
+// ⚠️ 以下の値をSupabaseの設定情報に書き換えてください
+const SUPABASE_URL = "https://fdpujjudmnqlzrfcewll.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkcHVqanVkbW5xbHpyZmNld2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMTYxMzIsImV4cCI6MjA5Mzc5MjEzMn0.8WxFY14THw5I87b7BK0C6MmUAsG1aPDFfL50CPxILhI";
 
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ========== DEFAULT STATE ==========
-const defaultQuizState = () => ({
-  questions: Array.from({ length: 10 }, (_, i) => ({
+const defaultQuestions = () =>
+  Array.from({ length: 10 }, (_, i) => ({
     id: i,
     text: "",
     answer: null,
-    isOpen: false,
-    isClosed: false,
-  })),
-  currentQ: -1,
+    is_open: false,
+    is_closed: false,
+  }));
+
+const defaultQuizState = () => ({
+  questions: defaultQuestions(),
+  current_q: -1,
   phase: "waiting",
-  rankingIndex: -1, // -1=非表示, 0〜=何位まで発表済み
+  ranking_index: -1,
 });
 
 // ========== STYLES ==========
@@ -49,7 +42,6 @@ const Styles = () => (
     @keyframes pulse { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.1)} }
     @keyframes confetti { 0%{transform:translateY(-60px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
     @keyframes slideIn { from{opacity:0;transform:translateY(40px) scale(.95)} to{opacity:1;transform:translateY(0) scale(1)} }
-    @keyframes flash { 0%,100%{opacity:1} 50%{opacity:0} }
 
     .fade { animation: fadeUp .5s ease both; }
     .gold { background: linear-gradient(90deg,var(--gold-d),var(--gold-l),var(--gold),var(--gold-l),var(--gold-d)); background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; animation:shimmer 3s linear infinite; }
@@ -120,23 +112,19 @@ function WelcomeScreen({ onJoin, onHost }) {
 function JoinScreen({ onEnter }) {
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function submit() {
     const t = name.trim();
     if (!t) { setErr("ニックネームを入力してください"); return; }
     if (t.length > 16) { setErr("16文字以内でお願いします"); return; }
-
+    setLoading(true);
     // Check duplicate
-    const snap = await new Promise(res => {
-      const r = ref(db, `participants/${t}`);
-      onValue(r, res, { onlyOnce: true });
-    });
-    if (snap.exists()) {
-      setErr("このニックネームはすでに使われています");
-      return;
-    }
+    const { data } = await supabase.from("participants").select("nickname").eq("nickname", t).single();
+    if (data) { setErr("このニックネームはすでに使われています"); setLoading(false); return; }
     // Register
-    await set(ref(db, `participants/${t}`), { answers: Array(10).fill(null), score: 0 });
+    await supabase.from("participants").insert({ nickname: t, answers: Array(10).fill(null), score: 0 });
+    setLoading(false);
     onEnter(t);
   }
 
@@ -151,7 +139,9 @@ function JoinScreen({ onEnter }) {
           onChange={e=>{setName(e.target.value);setErr("");}}
           onKeyDown={e=>e.key==="Enter"&&submit()} />
         {err && <p style={{ color:"#e87070", fontSize:".78rem", marginTop:6 }}>{err}</p>}
-        <button className="btn btn-gold" style={{ width:"100%", marginTop:14, fontSize:"1rem" }} onClick={submit}>参加する ✦</button>
+        <button className="btn btn-gold" style={{ width:"100%", marginTop:14, fontSize:"1rem" }} onClick={submit} disabled={loading}>
+          {loading ? "登録中…" : "参加する ✦"}
+        </button>
       </div>
     </div>
   );
@@ -177,12 +167,7 @@ function WaitingScreen({ nickname }) {
 
 function QuizScreen({ question, qNum, myAnswer, onAnswer }) {
   const [selected, setSelected] = useState(myAnswer);
-
-  function choose(val) {
-    setSelected(val);
-    onAnswer(val);
-  }
-
+  function choose(val) { setSelected(val); onAnswer(val); }
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div className="card fade" style={{ maxWidth:440, width:"100%", padding:"36px 28px", textAlign:"center" }}>
@@ -220,7 +205,8 @@ function AnswerRevealScreen({ question, myAnswer }) {
         <div style={{ fontSize:"5rem", margin:"16px 0", animation:"slideIn .5s ease" }}>
           {correct === true ? "○" : "×"}
         </div>
-        <div style={{ padding:"14px", borderRadius:12, background: isCorrect ? "rgba(201,168,76,.12)" : "rgba(201,76,76,.1)",
+        <div style={{ padding:"14px", borderRadius:12,
+          background: isCorrect ? "rgba(201,168,76,.12)" : "rgba(201,76,76,.1)",
           border: `1px solid ${isCorrect ? "var(--gold-d)" : "rgba(201,76,76,.3)"}`, marginTop:8 }}>
           <p style={{ fontSize:"1rem", color: isCorrect ? "var(--gold-l)" : "#e87070" }}>
             {isCorrect ? "🎉 正解！" : "😢 不正解…"}
@@ -249,9 +235,7 @@ function ParticipantResultScreen({ nickname, score }) {
           </div>
           <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", marginTop:6 }}>10問中 {score}問正解</p>
         </div>
-        <p style={{ fontSize:".88rem", color:"rgba(245,234,208,.6)", lineHeight:2 }}>
-          ランキング発表をお待ちください 🏆
-        </p>
+        <p style={{ fontSize:".88rem", color:"rgba(245,234,208,.6)", lineHeight:2 }}>ランキング発表をお待ちください 🏆</p>
         <Ornament />
         <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.35)" }}>ありがとうございました 💕</p>
       </div>
@@ -289,7 +273,7 @@ function SetupTab({ quizState }) {
 
   async function save() {
     const questions = quizState.questions.map((q,i)=>({...q, text:texts[i]}));
-    await set(ref(db, "quizState/questions"), questions);
+    await supabase.from("quiz_state").update({ questions }).eq("id", 1);
     setSaved(true);
     setTimeout(()=>setSaved(false), 2000);
   }
@@ -315,62 +299,46 @@ function SetupTab({ quizState }) {
 }
 
 function LiveTab({ quizState, participants }) {
-  const { questions, currentQ, phase } = quizState;
+  const { questions, current_q, phase, ranking_index } = quizState;
   const [liveAnswer, setLiveAnswer] = useState(null);
-  const participantList = Object.entries(participants);
-  const activeQ = currentQ >= 0 && currentQ < 10 ? questions[currentQ] : null;
-  const closedCount = questions.filter(q=>q.isClosed).length;
+  const closedCount = questions.filter(q=>q.is_closed).length;
+  const ranked = [...participants].sort((a,b)=>(b.score||0)-(a.score||0));
+
+  async function updateQuizState(updates) {
+    await supabase.from("quiz_state").update(updates).eq("id", 1);
+  }
 
   async function startQuestion(idx) {
-    const qs = questions.map((q,i)=> i===idx ? {...q, isOpen:true, isClosed:false, answer:null} : q);
+    const qs = questions.map((q,i)=> i===idx ? {...q, is_open:true, is_closed:false, answer:null} : q);
     setLiveAnswer(null);
-    await update(ref(db, "quizState"), { questions:qs, currentQ:idx, phase:"open" });
+    await updateQuizState({ questions:qs, current_q:idx, phase:"open" });
   }
 
   async function closeAndScore() {
     if (liveAnswer === null) { alert("正解（○か×）を選択してください"); return; }
-    const qs = questions.map((q,i)=> i===currentQ ? {...q, isOpen:false, isClosed:true, answer:liveAnswer} : q);
-    // Score all participants
-    for (const [nick, data] of participantList) {
-      const given = data.answers?.[currentQ] ?? null;
-      const newScore = (data.score||0) + (given === liveAnswer ? 1 : 0);
-      await update(ref(db, `participants/${nick}`), { score: newScore });
+    const qs = questions.map((q,i)=> i===current_q ? {...q, is_open:false, is_closed:true, answer:liveAnswer} : q);
+    // Score participants
+    for (const p of participants) {
+      const given = p.answers?.[current_q] ?? null;
+      const newScore = (p.score||0) + (given === liveAnswer ? 1 : 0);
+      await supabase.from("participants").update({ score: newScore }).eq("nickname", p.nickname);
     }
-    const isLast = currentQ === 9;
-    await update(ref(db, "quizState"), {
-      questions: qs,
-      phase: isLast ? "finished" : "revealing",
-      currentQ: isLast ? 10 : currentQ,
-    });
+    const isLast = current_q === 9;
+    await updateQuizState({ questions:qs, phase: isLast ? "finished" : "revealing", current_q: isLast ? 10 : current_q });
     setLiveAnswer(null);
-    // After 4 seconds, move to waiting (next question)
-    if (!isLast) {
-      setTimeout(async () => {
-        await update(ref(db, "quizState"), { phase: "waiting" });
-      }, 4000);
-    }
+    if (!isLast) setTimeout(() => updateQuizState({ phase:"waiting" }), 4000);
   }
 
-  async function startRanking() {
-    await update(ref(db, "quizState"), { rankingIndex: 0 });
-  }
-
-  async function nextRank() {
-    const current = quizState.rankingIndex ?? 0;
-    await update(ref(db, "quizState"), { rankingIndex: current + 1 });
-  }
+  async function startRanking() { await updateQuizState({ ranking_index: 0 }); }
+  async function nextRank() { await updateQuizState({ ranking_index: (ranking_index||0) + 1 }); }
 
   async function resetAll() {
     if (!confirm("全データをリセットしますか？")) return;
     const fresh = defaultQuizState();
-    // Keep question texts
     fresh.questions = fresh.questions.map((q,i)=>({...q, text:questions[i]?.text||""}));
-    await set(ref(db, "quizState"), fresh);
-    await set(ref(db, "participants"), {});
+    await supabase.from("quiz_state").update(fresh).eq("id", 1);
+    await supabase.from("participants").delete().neq("nickname", "");
   }
-
-  const ranked = [...participantList].sort((a,b)=>(b[1].score||0)-(a[1].score||0));
-  const rankingIndex = quizState.rankingIndex ?? -1;
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
@@ -379,65 +347,53 @@ function LiveTab({ quizState, participants }) {
         background: phase==="open" ? "rgba(201,168,76,.12)" : "rgba(255,255,255,.03)",
         display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <span style={{ fontSize:".85rem", color:"var(--gold)" }}>
-          {phase==="waiting" && currentQ<0 && "⏳ クイズ開始前"}
-          {phase==="waiting" && currentQ>=0 && currentQ<10 && `✅ 第${currentQ+1}問 終了 — 次の問題を出題してください`}
-          {phase==="open" && `📢 第${currentQ+1}問 回答受付中`}
-          {phase==="revealing" && `🔍 第${currentQ+1}問 正解発表中`}
+          {phase==="waiting" && current_q<0 && "⏳ クイズ開始前"}
+          {phase==="waiting" && current_q>=0 && current_q<10 && `✅ 第${current_q+1}問 終了 — 次の問題を出題してください`}
+          {phase==="open" && `📢 第${current_q+1}問 回答受付中`}
+          {phase==="revealing" && `🔍 第${current_q+1}問 正解発表中`}
           {phase==="finished" && "🏆 全問終了！ランキングを発表してください"}
         </span>
-        <span style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)" }}>参加者 {participantList.length}人</span>
+        <span style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)" }}>参加者 {participants.length}人</span>
       </div>
 
       {/* Question control */}
       {phase !== "finished" && (
         <div className="card" style={{ padding:"20px" }}>
-          {phase === "open" && activeQ ? (
+          {phase === "open" && current_q >= 0 ? (
             <>
-              <p style={{ fontSize:".7rem", color:"var(--gold)", letterSpacing:".15em", marginBottom:10 }}>第{currentQ+1}問 — 回答受付中</p>
-              <p style={{ fontSize:"1rem", lineHeight:1.9, marginBottom:20, color:"var(--cream)", fontFamily:"'Noto Serif JP'" }}>{activeQ.text}</p>
+              <p style={{ fontSize:".7rem", color:"var(--gold)", letterSpacing:".15em", marginBottom:10 }}>第{current_q+1}問 — 回答受付中</p>
+              <p style={{ fontSize:"1rem", lineHeight:1.9, marginBottom:20, color:"var(--cream)", fontFamily:"'Noto Serif JP'" }}>{questions[current_q]?.text}</p>
               <div style={{ padding:"14px 16px", borderRadius:10, background:"rgba(201,168,76,.06)", border:"1px solid rgba(139,105,20,.5)", marginBottom:16 }}>
-                <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.7)", marginBottom:12 }}>
-                  🎤 新郎新婦の答えを聞いて、正解を入力：
-                </p>
+                <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.7)", marginBottom:12 }}>🎤 新郎新婦の答えを聞いて、正解を入力：</p>
                 <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
-                  <button className={`btn-maru ${liveAnswer===true?"sel-maru":""}`}
-                    style={{ opacity: liveAnswer===false?.45:1 }}
-                    onClick={()=>setLiveAnswer(true)}>○</button>
-                  <button className={`btn-batsu ${liveAnswer===false?"sel-batsu":""}`}
-                    style={{ opacity: liveAnswer===true?.45:1 }}
-                    onClick={()=>setLiveAnswer(false)}>×</button>
+                  <button className={`btn-maru ${liveAnswer===true?"sel-maru":""}`} style={{ opacity:liveAnswer===false?.45:1 }} onClick={()=>setLiveAnswer(true)}>○</button>
+                  <button className={`btn-batsu ${liveAnswer===false?"sel-batsu":""}`} style={{ opacity:liveAnswer===true?.45:1 }} onClick={()=>setLiveAnswer(false)}>×</button>
                 </div>
               </div>
-              <button className="btn btn-gold" style={{ width:"100%", fontSize:".95rem" }}
-                onClick={closeAndScore} disabled={liveAnswer===null}>
+              <button className="btn btn-gold" style={{ width:"100%" }} onClick={closeAndScore} disabled={liveAnswer===null}>
                 ✓ 正解確定・回答を締め切る
               </button>
             </>
           ) : phase === "revealing" ? (
-            <p style={{ textAlign:"center", color:"var(--gold)", fontSize:".9rem", padding:"20px 0" }}>
-              🔍 正解発表中… 4秒後に自動で次へ進みます
-            </p>
+            <p style={{ textAlign:"center", color:"var(--gold)", fontSize:".9rem", padding:"20px 0" }}>🔍 正解発表中… 4秒後に自動で次へ進みます</p>
           ) : (
             <>
               <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.6)", marginBottom:16 }}>出題する問題を選んでください：</p>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {questions.map((q,i)=>{
-                  const done = q.isClosed;
-                  const canStart = !!q.text.trim();
+                  const done = q.is_closed;
+                  const canStart = !!q.text?.trim();
                   return (
                     <div key={i} style={{ display:"flex", alignItems:"center", gap:10, opacity:done?.45:1 }}>
-                      <span style={{ color:done?"var(--gold)":"rgba(245,234,208,.35)", minWidth:28, fontSize:".85rem" }}>
-                        {done ? "✓" : `Q${i+1}`}
-                      </span>
-                      <span style={{ flex:1, fontSize:".87rem", color:q.text?"var(--cream)":"rgba(245,234,208,.28)",
-                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                        {q.text || "（問題文未設定）"}
+                      <span style={{ color:done?"var(--gold)":"rgba(245,234,208,.35)", minWidth:28, fontSize:".85rem" }}>{done?"✓":`Q${i+1}`}</span>
+                      <span style={{ flex:1, fontSize:".87rem", color:q.text?"var(--cream)":"rgba(245,234,208,.28)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {q.text||"（問題文未設定）"}
                       </span>
                       {!done && (
                         <button className={`btn ${canStart?"btn-gold":"btn-outline"}`}
                           style={{ fontSize:".75rem", padding:"6px 14px", whiteSpace:"nowrap" }}
                           onClick={()=>canStart&&startQuestion(i)} disabled={!canStart}>
-                          {canStart ? "▶ 出題" : "未設定"}
+                          {canStart?"▶ 出題":"未設定"}
                         </button>
                       )}
                     </div>
@@ -449,21 +405,18 @@ function LiveTab({ quizState, participants }) {
         </div>
       )}
 
-      {/* Ranking control (after finished) */}
+      {/* Ranking control */}
       {phase === "finished" && (
         <div className="card" style={{ padding:"20px", textAlign:"center" }}>
           <p style={{ fontSize:".88rem", color:"rgba(245,234,208,.7)", marginBottom:16, lineHeight:1.8 }}>
-            投影画面でランキングカウントダウンを開始します。<br/>
-            ボタンを押すたびに1人ずつ発表されます。
+            投影画面でランキングカウントダウンを開始します。<br/>ボタンを押すたびに1人ずつ発表されます。
           </p>
-          {rankingIndex < 0 ? (
-            <button className="btn btn-gold" style={{ width:"100%", fontSize:"1rem" }} onClick={startRanking}>
-              🏆 ランキング発表を開始する
-            </button>
+          {(ranking_index ?? -1) < 0 ? (
+            <button className="btn btn-gold" style={{ width:"100%" }} onClick={startRanking}>🏆 ランキング発表を開始する</button>
           ) : (
-            <button className="btn btn-gold" style={{ width:"100%", fontSize:"1rem" }} onClick={nextRank}
-              disabled={rankingIndex >= Math.min(ranked.length, 20)}>
-              {rankingIndex >= Math.min(ranked.length, 20) ? "✓ 発表完了" : `▶ 次の順位を発表 (残り${Math.min(ranked.length,20)-rankingIndex}人)`}
+            <button className="btn btn-gold" style={{ width:"100%" }} onClick={nextRank}
+              disabled={(ranking_index||0) >= Math.min(ranked.length, 20)}>
+              {(ranking_index||0) >= Math.min(ranked.length,20) ? "✓ 発表完了" : `▶ 次の順位を発表 (残り${Math.min(ranked.length,20)-(ranking_index||0)}人)`}
             </button>
           )}
         </div>
@@ -472,34 +425,28 @@ function LiveTab({ quizState, participants }) {
       {/* Ranking */}
       <div className="card" style={{ padding:"20px" }}>
         <h3 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"1.3rem", fontWeight:300, marginBottom:16 }}>
-          🏆 ランキング {closedCount > 0 && <span style={{ fontSize:".75rem", WebkitTextFillColor:"rgba(245,234,208,.4)", background:"none", animation:"none", color:"rgba(245,234,208,.4)" }}>（{closedCount}問終了時点）</span>}
+          🏆 ランキング {closedCount > 0 && <span style={{ fontSize:".75rem", WebkitTextFillColor:"rgba(245,234,208,.4)", background:"none", animation:"none" }}>（{closedCount}問終了時点）</span>}
         </h3>
         {ranked.length === 0 ? (
           <p style={{ color:"rgba(245,234,208,.3)", fontSize:".85rem" }}>まだ参加者がいません</p>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {ranked.map(([nick,data],i)=>(
-              <div key={nick} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 14px", borderRadius:8,
-                background:i<3?"rgba(201,168,76,.08)":"transparent",
-                border:i<3?"1px solid rgba(201,168,76,.18)":"1px solid transparent" }}>
-                <span style={{ minWidth:32, fontSize:".95rem",
-                  color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"rgba(245,234,208,.35)" }}>
+            {ranked.map((p,i)=>(
+              <div key={p.nickname} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 14px", borderRadius:8,
+                background:i<3?"rgba(201,168,76,.08)":"transparent", border:i<3?"1px solid rgba(201,168,76,.18)":"1px solid transparent" }}>
+                <span style={{ minWidth:32, fontSize:".95rem", color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"rgba(245,234,208,.35)" }}>
                   {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}位`}
                 </span>
-                <span style={{ flex:1, fontSize:".92rem" }}>{nick}</span>
+                <span style={{ flex:1, fontSize:".92rem" }}>{p.nickname}</span>
                 <span style={{ color:"var(--gold)", fontFamily:"'Cormorant Garamond'", fontSize:"1.15rem" }}>
-                  {data.score||0}
-                  <span style={{ fontSize:".68rem", color:"rgba(245,234,208,.35)", marginLeft:3 }}>/ {closedCount}</span>
+                  {p.score||0}<span style={{ fontSize:".68rem", color:"rgba(245,234,208,.35)", marginLeft:3 }}>/ {closedCount}</span>
                 </span>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      <button className="btn btn-outline"
-        style={{ fontSize:".75rem", color:"rgba(245,234,208,.35)", borderColor:"rgba(245,234,208,.12)" }}
-        onClick={resetAll}>
+      <button className="btn btn-outline" style={{ fontSize:".75rem", color:"rgba(245,234,208,.35)", borderColor:"rgba(245,234,208,.12)" }} onClick={resetAll}>
         ⚠ 全データをリセット
       </button>
     </div>
@@ -529,104 +476,86 @@ function HostPanel({ quizState, participants }) {
 }
 
 // =============================================
-// PROJECTION SCREEN（投影画面）
+// PROJECTION SCREEN
 // =============================================
 function ProjectionScreen({ quizState, participants }) {
-  const { questions, currentQ, phase, rankingIndex } = quizState;
-  const ranked = Object.entries(participants).sort((a,b)=>(b[1].score||0)-(a[1].score||0));
+  const { questions, current_q, phase, ranking_index } = quizState;
+  const ranked = [...participants].sort((a,b)=>(b.score||0)-(a.score||0));
 
-  // Ranking countdown
-  if (phase === "finished" && rankingIndex >= 0) {
+  if (phase === "finished" && (ranking_index ?? -1) >= 0) {
     const totalToShow = Math.min(ranked.length, 20);
-    const shownCount = rankingIndex;
-    // Show from 20th down to (20-shownCount+1)th
+    const shownCount = ranking_index || 0;
     const shownEntries = ranked.slice(totalToShow - shownCount, totalToShow).reverse();
-    const isFirst = shownCount >= totalToShow && ranked[0];
-    const showConfetti = isFirst;
-
     return (
       <div style={{ minHeight:"100vh", background:"#0a0700", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
-        {showConfetti && <Confetti />}
+        {shownCount >= totalToShow && shownCount > 0 && <Confetti />}
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(2rem,5vw,3.5rem)", fontWeight:300, marginBottom:40, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
         <div style={{ width:"100%", maxWidth:700, display:"flex", flexDirection:"column", gap:12 }}>
-          {shownEntries.map(([nick, data], i) => {
-            const actualRank = totalToShow - i - (shownCount - shownEntries.length);
+          {shownEntries.map(([p], i) => {
             const rank = totalToShow - shownEntries.length + i + 1;
+            const participant = typeof p === "string" ? ranked.find(r=>r.nickname===p) : shownEntries[i];
+            const entry = ranked[totalToShow - shownCount + i];
+            if (!entry) return null;
+            const actualRank = ranked.indexOf(entry) + 1;
             return (
-              <div key={nick} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 28px",
-                borderRadius:12, animation:"slideIn .6s ease both",
-                background: rank===1 ? "rgba(255,215,0,.15)" : rank<=3 ? "rgba(201,168,76,.1)" : "rgba(255,255,255,.04)",
-                border: rank===1 ? "1px solid gold" : rank<=3 ? "1px solid var(--gold-d)" : "1px solid rgba(201,168,76,.2)" }}>
+              <div key={entry.nickname} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 28px", borderRadius:12,
+                animation:"slideIn .6s ease both",
+                background: actualRank===1?"rgba(255,215,0,.15)":actualRank<=3?"rgba(201,168,76,.1)":"rgba(255,255,255,.04)",
+                border: actualRank===1?"1px solid gold":actualRank<=3?"1px solid var(--gold-d)":"1px solid rgba(201,168,76,.2)" }}>
                 <span style={{ fontSize:"clamp(1.5rem,4vw,2.5rem)", minWidth:60, textAlign:"center",
-                  color: rank===1?"#ffd700":rank===2?"#c0c0c0":rank===3?"#cd7f32":"rgba(245,234,208,.5)" }}>
-                  {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}位`}
+                  color:actualRank===1?"#ffd700":actualRank===2?"#c0c0c0":actualRank===3?"#cd7f32":"rgba(245,234,208,.5)" }}>
+                  {actualRank===1?"🥇":actualRank===2?"🥈":actualRank===3?"🥉":`${actualRank}位`}
                 </span>
-                <span style={{ flex:1, fontSize:"clamp(1.2rem,3.5vw,2rem)", fontFamily:"'Noto Serif JP'" }}>{nick}</span>
+                <span style={{ flex:1, fontSize:"clamp(1.2rem,3.5vw,2rem)", fontFamily:"'Noto Serif JP'" }}>{entry.nickname}</span>
                 <span className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.5rem,4vw,2.5rem)", fontWeight:300 }}>
-                  {data.score||0}<span style={{ fontSize:".6em" }}>点</span>
+                  {entry.score||0}<span style={{ fontSize:".6em" }}>点</span>
                 </span>
               </div>
             );
           })}
         </div>
-        {shownCount === 0 && (
-          <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1rem", marginTop:20 }}>進行者がボタンを押すと発表が始まります</p>
-        )}
+        {shownCount === 0 && <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1rem", marginTop:20 }}>進行者がボタンを押すと発表が始まります</p>}
       </div>
     );
   }
 
-  // Waiting
-  if (phase === "waiting" || currentQ < 0) {
+  if (phase === "waiting" || current_q < 0) {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700" }}>
         <div style={{ fontSize:"4rem", marginBottom:20, animation:"pulse 2s ease infinite" }}>💍</div>
-        <h1 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(3rem,8vw,6rem)", fontWeight:300, letterSpacing:".15em" }}>
-          Wedding Quiz
-        </h1>
-        <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.1rem", marginTop:16, letterSpacing:".3em" }}>
-          ふたりのことを、どれだけ知っていますか？
-        </p>
-        {currentQ >= 0 && (
-          <p style={{ color:"var(--gold)", fontSize:"1rem", marginTop:40, letterSpacing:".2em" }}>次の問題をお待ちください…</p>
-        )}
+        <h1 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(3rem,8vw,6rem)", fontWeight:300, letterSpacing:".15em" }}>Wedding Quiz</h1>
+        <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.1rem", marginTop:16, letterSpacing:".3em" }}>ふたりのことを、どれだけ知っていますか？</p>
+        {current_q >= 0 && <p style={{ color:"var(--gold)", fontSize:"1rem", marginTop:40, letterSpacing:".2em" }}>次の問題をお待ちください…</p>}
       </div>
     );
   }
 
-  const q = questions[currentQ];
+  const q = questions[current_q];
   if (!q) return null;
 
-  // Revealing answer
   if (phase === "revealing") {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
-        <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {currentQ+1} / 10 — 正解発表</p>
+        <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {current_q+1} / 10 — 正解発表</p>
         <p style={{ fontSize:"clamp(1.2rem,3vw,2rem)", color:"rgba(245,234,208,.8)", lineHeight:1.8, maxWidth:800, marginBottom:40, fontFamily:"'Noto Serif JP'" }}>{q.text}</p>
-        <div style={{ fontSize:"clamp(6rem,20vw,12rem)", animation:"slideIn .5s ease", color: q.answer ? "var(--maru)" : "var(--batsu)" }}>
+        <div style={{ fontSize:"clamp(6rem,20vw,12rem)", animation:"slideIn .5s ease", color: q.answer?"var(--maru)":"var(--batsu)" }}>
           {q.answer === true ? "○" : "×"}
         </div>
       </div>
     );
   }
 
-  // Open - show question
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
-      <ProgressBar current={currentQ} />
-      <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {currentQ+1} / 10</p>
-      <p style={{ fontSize:"clamp(1.5rem,4vw,2.8rem)", color:"var(--cream)", lineHeight:1.8, maxWidth:900, fontFamily:"'Noto Serif JP'", animation:"fadeUp .6s ease" }}>
-        {q.text}
-      </p>
+      <ProgressBar current={current_q} />
+      <p style={{ fontSize:"1rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:20 }}>QUESTION {current_q+1} / 10</p>
+      <p style={{ fontSize:"clamp(1.5rem,4vw,2.8rem)", color:"var(--cream)", lineHeight:1.8, maxWidth:900, fontFamily:"'Noto Serif JP'", animation:"fadeUp .6s ease" }}>{q.text}</p>
       <div style={{ display:"flex", gap:60, marginTop:60, fontSize:"clamp(4rem,12vw,8rem)", color:"rgba(245,234,208,.2)" }}>
-        <span>○</span>
-        <span>×</span>
+        <span>○</span><span>×</span>
       </div>
-      <p style={{ marginTop:40, color:"rgba(245,234,208,.4)", fontSize:"1rem", letterSpacing:".2em", animation:`pulse 1.5s ease infinite` }}>
-        スマホで回答してください
-      </p>
+      <p style={{ marginTop:40, color:"rgba(245,234,208,.4)", fontSize:"1rem", letterSpacing:".2em", animation:"pulse 1.5s ease infinite" }}>スマホで回答してください</p>
     </div>
   );
 }
@@ -638,59 +567,65 @@ export default function App() {
   const [view, setView] = useState("welcome");
   const [nickname, setNickname] = useState("");
   const [quizState, setQuizState] = useState(defaultQuizState());
-  const [participants, setParticipants] = useState({});
+  const [participants, setParticipants] = useState([]);
   const [myAnswers, setMyAnswers] = useState(Array(10).fill(null));
-
-  // Detect projection mode (?mode=projection in URL)
   const isProjection = new URLSearchParams(window.location.search).get("mode") === "projection";
 
-  // Firebase real-time listeners
+  // Initialize quiz_state if not exists
   useEffect(() => {
-    const qRef = ref(db, "quizState");
-    const unsub1 = onValue(qRef, snap => {
-      if (snap.exists()) setQuizState(snap.val());
-      else {
-        // Initialize
-        set(ref(db, "quizState"), defaultQuizState());
+    async function init() {
+      const { data } = await supabase.from("quiz_state").select("*").eq("id", 1).single();
+      if (!data) {
+        await supabase.from("quiz_state").insert({ id: 1, ...defaultQuizState() });
+      } else {
+        setQuizState(data);
       }
-    });
-    const pRef = ref(db, "participants");
-    const unsub2 = onValue(pRef, snap => {
-      setParticipants(snap.exists() ? snap.val() : {});
-    });
-    return () => { unsub1(); unsub2(); };
+    }
+    init();
+  }, []);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    const qzChannel = supabase.channel("quiz_state_changes")
+      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"quiz_state" }, payload => {
+        setQuizState(payload.new);
+      }).subscribe();
+
+    const ptChannel = supabase.channel("participants_changes")
+      .on("postgres_changes", { event:"*", schema:"public", table:"participants" }, async () => {
+        const { data } = await supabase.from("participants").select("*");
+        setParticipants(data || []);
+      }).subscribe();
+
+    // Initial load of participants
+    supabase.from("participants").select("*").then(({ data }) => setParticipants(data || []));
+
+    return () => { supabase.removeChannel(qzChannel); supabase.removeChannel(ptChannel); };
   }, []);
 
   async function submitAnswer(qIdx, val) {
     const newAnswers = [...myAnswers];
     newAnswers[qIdx] = val;
     setMyAnswers(newAnswers);
-    await update(ref(db, `participants/${nickname}`), { [`answers/${qIdx}`]: val });
+    await supabase.from("participants").update({ answers: newAnswers }).eq("nickname", nickname);
   }
 
-  // Projection mode
-  if (isProjection) {
-    return <><Styles /><ProjectionScreen quizState={quizState} participants={participants} /></>;
-  }
-
-  // Host mode
+  if (isProjection) return <><Styles /><ProjectionScreen quizState={quizState} participants={participants} /></>;
   if (view === "host-login") return <><Styles /><HostLogin onLogin={()=>setView("host")} /></>;
   if (view === "host") return <><Styles /><HostPanel quizState={quizState} participants={participants} /></>;
 
-  // Participant routing
   if (view === "participant") {
-    const { phase, currentQ, questions } = quizState;
-
+    const { phase, current_q, questions } = quizState;
     if (phase === "finished") {
-      const myScore = participants[nickname]?.score || 0;
-      return <><Styles /><ParticipantResultScreen nickname={nickname} score={myScore} /></>;
+      const me = participants.find(p=>p.nickname===nickname);
+      return <><Styles /><ParticipantResultScreen nickname={nickname} score={me?.score||0} /></>;
     }
-    if ((phase === "open" || phase === "revealing") && currentQ >= 0 && currentQ < 10) {
+    if ((phase === "open" || phase === "revealing") && current_q >= 0 && current_q < 10) {
       if (phase === "revealing") {
-        return <><Styles /><AnswerRevealScreen question={questions[currentQ]} myAnswer={myAnswers[currentQ]} /></>;
+        return <><Styles /><AnswerRevealScreen question={questions[current_q]} myAnswer={myAnswers[current_q]} /></>;
       }
-      return <><Styles /><QuizScreen question={questions[currentQ]} qNum={currentQ+1}
-        myAnswer={myAnswers[currentQ]} onAnswer={v=>submitAnswer(currentQ,v)} /></>;
+      return <><Styles /><QuizScreen question={questions[current_q]} qNum={current_q+1}
+        myAnswer={myAnswers[current_q]} onAnswer={v=>submitAnswer(current_q,v)} /></>;
     }
     return <><Styles /><WaitingScreen nickname={nickname} /></>;
   }
