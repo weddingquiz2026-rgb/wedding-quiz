@@ -166,24 +166,66 @@ function WaitingScreen({ nickname }) {
 }
 
 function QuizScreen({ question, qNum, myAnswer, onAnswer }) {
-  const [selected, setSelected] = useState(myAnswer);
-  function choose(val) { setSelected(val); onAnswer(val); }
+  const [selectedAns, setSelectedAns] = useState(myAnswer?.answer ?? null);
+  const [selectedBet, setSelectedBet] = useState(myAnswer?.bet ?? null);
+
+  function choose(ans, bet) {
+    const newAns = ans !== undefined ? ans : selectedAns;
+    const newBet = bet !== undefined ? bet : selectedBet;
+    if (ans !== undefined) setSelectedAns(ans);
+    if (bet !== undefined) setSelectedBet(bet);
+    if ((ans !== undefined ? ans : selectedAns) !== null && (bet !== undefined ? bet : selectedBet) !== null) {
+      onAnswer(ans !== undefined ? ans : selectedAns, bet !== undefined ? bet : selectedBet);
+    }
+  }
+
+  const canSubmit = selectedAns !== null && selectedBet !== null;
+
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-      <div className="card fade" style={{ maxWidth:440, width:"100%", padding:"36px 28px", textAlign:"center" }}>
+      <div className="card fade" style={{ maxWidth:460, width:"100%", padding:"36px 28px", textAlign:"center" }}>
         <ProgressBar current={qNum-1} />
         <p style={{ fontSize:".72rem", color:"var(--gold)", letterSpacing:".2em", marginBottom:10 }}>QUESTION {qNum} / 10</p>
         <div className="divider" />
-        <p style={{ fontSize:"clamp(.95rem,3.5vw,1.15rem)", lineHeight:2, margin:"24px 0 32px", fontFamily:"'Noto Serif JP'" }}>
+        <p style={{ fontSize:"clamp(.95rem,3.5vw,1.15rem)", lineHeight:2, margin:"20px 0 24px", fontFamily:"'Noto Serif JP'" }}>
           {question.text}
         </p>
-        <div style={{ display:"flex", gap:20, justifyContent:"center" }}>
-          <button className={`btn-yes ${selected===true?"sel-yes":""}`} onClick={()=>choose(true)}>Yes</button>
-          <button className={`btn-no ${selected===false?"sel-no":""}`} onClick={()=>choose(false)}>No</button>
+
+        {/* Yes/No */}
+        <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.5)", marginBottom:10, letterSpacing:".1em" }}>回答を選んでください</p>
+        <div style={{ display:"flex", gap:16, justifyContent:"center", marginBottom:24 }}>
+          <button className={`btn-yes ${selectedAns===true?"sel-yes":""}`} onClick={()=>choose(true, undefined)}>Yes</button>
+          <button className={`btn-no ${selectedAns===false?"sel-no":""}`} onClick={()=>choose(false, undefined)}>No</button>
         </div>
-        {selected !== null && (
+
+        {/* Bet */}
+        <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.5)", marginBottom:10, letterSpacing:".1em" }}>自信度を選んでください（正解で＋、不正解で−）</p>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          {[1,2,3].map(b => (
+            <button key={b} onClick={()=>choose(undefined, b)} style={{
+              width:72, height:72, borderRadius:12, border:"none", cursor:"pointer",
+              fontFamily:"inherit", fontSize:"1.3rem", fontWeight:700,
+              transition:"all .2s",
+              background: selectedBet===b
+                ? "linear-gradient(135deg,var(--gold-d),var(--gold),var(--gold-l))"
+                : "rgba(201,168,76,.1)",
+              color: selectedBet===b ? "#140f05" : "var(--gold)",
+              outline: selectedBet===b ? "3px solid var(--gold)" : "none",
+              outlineOffset: 3,
+              transform: selectedBet===b ? "scale(1.08)" : "scale(1)",
+            }}>
+              {b}点
+            </button>
+          ))}
+        </div>
+
+        {canSubmit ? (
           <p style={{ marginTop:20, color:"var(--gold)", fontSize:".82rem", animation:"fadeUp .4s ease" }}>
-            ✓ 回答しました — 変更できます
+            ✓ {selectedAns ? "Yes" : "No"} / {selectedBet}点賭け — 変更できます
+          </p>
+        ) : (
+          <p style={{ marginTop:20, color:"rgba(245,234,208,.3)", fontSize:".78rem" }}>
+            回答と自信度の両方を選んでください
           </p>
         )}
       </div>
@@ -193,7 +235,11 @@ function QuizScreen({ question, qNum, myAnswer, onAnswer }) {
 
 function AnswerRevealScreen({ question, myAnswer }) {
   const correct = question.answer;
-  const isCorrect = myAnswer === correct;
+  const ans = myAnswer?.answer ?? null;
+  const bet = myAnswer?.bet ?? null;
+  const isCorrect = ans === correct;
+  const delta = bet !== null ? (isCorrect ? bet : -bet) : null;
+
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
       <div className="card fade" style={{ maxWidth:440, width:"100%", padding:"36px 28px", textAlign:"center" }}>
@@ -202,18 +248,30 @@ function AnswerRevealScreen({ question, myAnswer }) {
         <p style={{ fontSize:"clamp(.95rem,3.5vw,1.1rem)", lineHeight:2, margin:"20px 0", fontFamily:"'Noto Serif JP'", color:"rgba(245,234,208,.7)" }}>
           {question.text}
         </p>
-        <div style={{ fontSize:"5rem", margin:"16px 0", animation:"slideIn .5s ease" }}>
+        <div style={{ fontSize:"4rem", margin:"12px 0", animation:"slideIn .5s ease" }}>
           {correct === true ? "Yes" : "No"}
         </div>
         <div style={{ padding:"14px", borderRadius:12,
-          background: isCorrect ? "rgba(201,168,76,.12)" : "rgba(201,76,76,.1)",
-          border: `1px solid ${isCorrect ? "var(--gold-d)" : "rgba(201,76,76,.3)"}`, marginTop:8 }}>
-          <p style={{ fontSize:"1rem", color: isCorrect ? "var(--gold-l)" : "#e87070" }}>
-            {isCorrect ? "🎉 正解！" : "😢 不正解…"}
-          </p>
-          <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", marginTop:4 }}>
-            あなたの回答: {myAnswer === true ? "Yes" : myAnswer === false ? "No" : "未回答"}
-          </p>
+          background: ans === null ? "rgba(255,255,255,.04)" : isCorrect ? "rgba(201,168,76,.12)" : "rgba(201,76,76,.1)",
+          border: `1px solid ${ans === null ? "rgba(255,255,255,.1)" : isCorrect ? "var(--gold-d)" : "rgba(201,76,76,.3)"}`, marginTop:8 }}>
+          {ans === null ? (
+            <p style={{ fontSize:".9rem", color:"rgba(245,234,208,.4)" }}>未回答</p>
+          ) : (
+            <>
+              <p style={{ fontSize:"1.1rem", color: isCorrect ? "var(--gold-l)" : "#e87070", fontWeight:600 }}>
+                {isCorrect ? "🎉 正解！" : "😢 不正解…"}
+              </p>
+              <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.55)", marginTop:6 }}>
+                あなたの回答: <strong>{ans ? "Yes" : "No"}</strong> / {bet}点賭け
+              </p>
+              {delta !== null && (
+                <p style={{ fontSize:"1.3rem", fontWeight:700, marginTop:8,
+                  color: delta > 0 ? "var(--gold-l)" : "#e87070" }}>
+                  {delta > 0 ? `+${delta}点` : `${delta}点`}
+                </p>
+              )}
+            </>
+          )}
         </div>
         <p style={{ marginTop:20, fontSize:".8rem", color:"rgba(245,234,208,.4)" }}>次の問題をお待ちください…</p>
       </div>
@@ -221,32 +279,56 @@ function AnswerRevealScreen({ question, myAnswer }) {
   );
 }
 
-function ParticipantResultScreen({ nickname, score }) {
+function ParticipantResultScreen({ nickname, score, myAnswers, questions }) {
   return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-      <div className="card fade" style={{ maxWidth:400, width:"100%", padding:"40px 28px", textAlign:"center" }}>
+    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", padding:"32px 16px 48px" }}>
+      <div className="card fade" style={{ maxWidth:480, width:"100%", padding:"32px 24px", textAlign:"center", marginBottom:20 }}>
         <div style={{ fontSize:"2.5rem" }}>🎊</div>
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"2rem", fontWeight:300, marginTop:10 }}>クイズ終了！</h2>
         <div className="divider" />
         <p style={{ color:"rgba(245,234,208,.6)", fontSize:".88rem" }}>{nickname} さんの結果</p>
-        <div style={{ margin:"20px 0", background:"rgba(201,168,76,.08)", borderRadius:12, padding:"24px 16px" }}>
-          <div className="gold" style={{ fontFamily:"'Noto Serif JP'", fontSize:"4.5rem", fontWeight:600, lineHeight:1, letterSpacing:".05em" }}>
-            {score}<span style={{ fontSize:"1.4rem" }}>点</span>
+        <div style={{ margin:"16px 0", background:"rgba(201,168,76,.08)", borderRadius:12, padding:"20px 16px" }}>
+          <div style={{ fontFamily:"'Noto Serif JP'", fontSize:"4rem", fontWeight:700, lineHeight:1,
+            color: score >= 0 ? "var(--gold-l)" : "#e87070" }}>
+            {score >= 0 ? `+${score}` : score}<span style={{ fontSize:"1.2rem" }}>点</span>
           </div>
-          <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", marginTop:6 }}>10問中 {score}問正解</p>
+          <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.4)", marginTop:6 }}>合計スコア</p>
         </div>
         <p style={{ fontSize:".88rem", color:"rgba(245,234,208,.6)", lineHeight:2 }}>ランキング発表をお待ちください 🏆</p>
-        <Ornament />
-        <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.35)" }}>ありがとうございました 💕</p>
       </div>
+
+      <div style={{ maxWidth:480, width:"100%", display:"flex", flexDirection:"column", gap:10 }}>
+        <p style={{ fontSize:".78rem", color:"var(--gold)", letterSpacing:".15em", textAlign:"center", marginBottom:4 }}>各問の結果</p>
+        {(questions||[]).map((q, i) => {
+          const a = myAnswers?.[i];
+          const ans = a?.answer ?? null;
+          const bet = a?.bet ?? null;
+          const correct = q.answer;
+          const isCorrect = ans === correct && correct !== null;
+          const delta = (bet !== null && correct !== null) ? (isCorrect ? bet : -bet) : null;
+          return (
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderRadius:10,
+              background: delta === null ? "rgba(255,255,255,.03)" : delta > 0 ? "rgba(201,168,76,.08)" : "rgba(201,76,76,.08)",
+              border: `1px solid ${delta === null ? "rgba(255,255,255,.08)" : delta > 0 ? "rgba(201,168,76,.25)" : "rgba(201,76,76,.25)"}` }}>
+              <span style={{ color:"var(--gold)", fontSize:".8rem", minWidth:28 }}>Q{i+1}</span>
+              <span style={{ flex:1, fontSize:".78rem", color:"rgba(245,234,208,.6)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {q.text || "—"}
+              </span>
+              <span style={{ fontSize:".78rem", color:"rgba(245,234,208,.45)", whiteSpace:"nowrap" }}>
+                {ans === null ? "未回答" : `${ans ? "Yes" : "No"} / ${bet}pt`}
+              </span>
+              <span style={{ fontSize:".9rem", fontWeight:700, minWidth:36, textAlign:"right",
+                color: delta === null ? "rgba(245,234,208,.3)" : delta > 0 ? "var(--gold-l)" : "#e87070" }}>
+                {delta === null ? "—" : delta > 0 ? `+${delta}` : `${delta}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ marginTop:24, fontSize:".72rem", color:"rgba(245,234,208,.3)" }}>ありがとうございました 💕</p>
     </div>
   );
 }
-
-// =============================================
-// HOST SCREENS
-// =============================================
-const HOST_PW = "keitaro2026";
 
 function HostLogin({ onLogin }) {
   const [pw, setPw] = useState(""); const [err, setErr] = useState("");
@@ -317,10 +399,13 @@ function LiveTab({ quizState, participants }) {
   async function closeAndScore() {
     if (liveAnswer === null) { alert("正解（YesかNo）を選択してください"); return; }
     const qs = questions.map((q,i)=> i===current_q ? {...q, is_open:false, is_closed:true, answer:liveAnswer} : q);
-    // Score participants
+    // Score participants (bet-based)
     for (const p of participants) {
-      const given = p.answers?.[current_q] ?? null;
-      const newScore = (p.score||0) + (given === liveAnswer ? 1 : 0);
+      const answerData = p.answers?.[current_q] ?? null;
+      const given = answerData?.answer ?? null;
+      const bet = answerData?.bet ?? 1;
+      const delta = given === liveAnswer ? bet : -bet;
+      const newScore = (p.score||0) + delta;
       await supabase.from("participants").update({ score: newScore }).eq("nickname", p.nickname);
     }
     const isLast = current_q === 9;
@@ -702,7 +787,7 @@ export default function App() {
   const [nickname, setNickname] = useState("");
   const [quizState, setQuizState] = useState(defaultQuizState());
   const [participants, setParticipants] = useState([]);
-  const [myAnswers, setMyAnswers] = useState(Array(10).fill(null));
+  const [myAnswers, setMyAnswers] = useState(Array(10).fill(null).map(()=>({answer:null,bet:null})));
   const isProjection = new URLSearchParams(window.location.search).get("mode") === "projection";
 
   // Initialize quiz_state if not exists
@@ -737,9 +822,9 @@ export default function App() {
     return () => { supabase.removeChannel(qzChannel); supabase.removeChannel(ptChannel); };
   }, []);
 
-  async function submitAnswer(qIdx, val) {
+  async function submitAnswer(qIdx, answerVal, betVal) {
     const newAnswers = [...myAnswers];
-    newAnswers[qIdx] = val;
+    newAnswers[qIdx] = { answer: answerVal, bet: betVal };
     setMyAnswers(newAnswers);
     await supabase.from("participants").update({ answers: newAnswers }).eq("nickname", nickname);
   }
@@ -752,14 +837,15 @@ export default function App() {
     const { phase, current_q, questions } = quizState;
     if (phase === "finished") {
       const me = participants.find(p=>p.nickname===nickname);
-      return <><Styles /><ParticipantResultScreen nickname={nickname} score={me?.score||0} /></>;
+      return <><Styles /><ParticipantResultScreen nickname={nickname} score={me?.score||0} myAnswers={myAnswers} questions={quizState.questions} /></>;
     }
     if ((phase === "open" || phase === "revealing") && current_q >= 0 && current_q < 10) {
       if (phase === "revealing") {
         return <><Styles /><AnswerRevealScreen question={questions[current_q]} myAnswer={myAnswers[current_q]} /></>;
       }
       return <><Styles /><QuizScreen question={questions[current_q]} qNum={current_q+1}
-        myAnswer={myAnswers[current_q]} onAnswer={v=>submitAnswer(current_q,v)} /></>;
+        myAnswer={myAnswers[current_q]}
+        onAnswer={(ans, bet) => submitAnswer(current_q, ans, bet)} /></>;
     }
     return <><Styles /><WaitingScreen nickname={nickname} /></>;
   }
