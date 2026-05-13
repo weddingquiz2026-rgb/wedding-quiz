@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -486,19 +485,16 @@ function ProjectionScreen({ quizState, participants }) {
   if (phase === "finished" && (ranking_index ?? -1) >= 0) {
     const totalToShow = Math.min(ranked.length, 20);
     const shownCount = ranking_index || 0;
-    const shownEntries = ranked.slice(totalToShow - shownCount, totalToShow).reverse();
+    // 20位〜(20-shownCount+1)位までを表示（逆順：下位から上位へ）
+    const displayEntries = ranked.slice(0, totalToShow).reverse().slice(0, shownCount);
     return (
       <div style={{ minHeight:"100vh", background:"#0a0700", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40 }}>
-        {shownCount >= totalToShow && shownCount > 0 && <Confetti />}
+        {shownCount >= totalToShow && <Confetti />}
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(2rem,5vw,3.5rem)", fontWeight:300, marginBottom:40, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
         <div style={{ width:"100%", maxWidth:700, display:"flex", flexDirection:"column", gap:12 }}>
-          {shownEntries.map(([p], i) => {
-            const rank = totalToShow - shownEntries.length + i + 1;
-            const participant = typeof p === "string" ? ranked.find(r=>r.nickname===p) : shownEntries[i];
-            const entry = ranked[totalToShow - shownCount + i];
-            if (!entry) return null;
+          {displayEntries.map((entry, i) => {
             const actualRank = ranked.indexOf(entry) + 1;
             return (
               <div key={entry.nickname} style={{ display:"flex", alignItems:"center", gap:20, padding:"16px 28px", borderRadius:12,
@@ -510,7 +506,7 @@ function ProjectionScreen({ quizState, participants }) {
                   {actualRank===1?"🥇":actualRank===2?"🥈":actualRank===3?"🥉":`${actualRank}位`}
                 </span>
                 <span style={{ flex:1, fontSize:"clamp(1.2rem,3.5vw,2rem)", fontFamily:"'Noto Serif JP'" }}>{entry.nickname}</span>
-                <span className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.5rem,4vw,2.5rem)", fontWeight:300 }}>
+                <span className="gold" style={{ fontFamily:"'Noto Serif JP'", fontSize:"clamp(1.5rem,4vw,2.5rem)", fontWeight:600 }}>
                   {entry.score||0}<span style={{ fontSize:".6em" }}>点</span>
                 </span>
               </div>
@@ -639,4 +635,3 @@ export default function App() {
     </>
   );
 }
-
