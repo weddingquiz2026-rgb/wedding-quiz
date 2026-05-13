@@ -500,20 +500,20 @@ function LiveTab({ quizState, participants }) {
   async function nextRank() { await updateQuizState({ ranking_index: (ranking_index||0) + 1 }); }
 
   async function resetAll() {
-    if (!confirm("全データをリセットしますか？
-
-※問題文・練習問題のテキストは保持されます")) return;
-    const fresh = defaultQuizState();
-    // 問題文を保持
-    fresh.questions = fresh.questions.map((q,i)=>({...q, text:questions[i]?.text||""}));
-    // 練習問題のテキストを保持（進行状態のみリセット）
-    fresh.trial_question = {
-      text: quizState.trial_question?.text || "",
-      answer: null,
-      is_open: false,
-      is_closed: false,
+    if (!confirm("全データをリセットしますか？\n\n※問題文・練習問題のテキストは保持されます")) return;
+    const resetData = {
+      questions: questions.map(q=>({...q, answer:null, is_open:false, is_closed:false})),
+      trial_question: {
+        text: quizState.trial_question?.text || "",
+        answer: null,
+        is_open: false,
+        is_closed: false,
+      },
+      current_q: -1,
+      phase: "waiting",
+      ranking_index: -1,
     };
-    await supabase.from("quiz_state").update(fresh).eq("id", 1);
+    await supabase.from("quiz_state").update(resetData).eq("id", 1);
     await supabase.from("participants").delete().neq("nickname", "");
   }
 
