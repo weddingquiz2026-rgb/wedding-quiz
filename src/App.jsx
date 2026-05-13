@@ -621,14 +621,23 @@ function LiveTab({ quizState, participants }) {
           <p style={{ fontSize:".88rem", color:"rgba(245,234,208,.7)", marginBottom:16, lineHeight:1.8 }}>
             投影画面でランキングカウントダウンを開始します。<br/>ボタンを押すたびに1人ずつ発表されます。
           </p>
-          {(ranking_index ?? -1) < 0 ? (
-            <button className="btn btn-gold" style={{ width:"100%" }} onClick={startRanking}>🏆 ランキング発表を開始する</button>
-          ) : (
-            <button className="btn btn-gold" style={{ width:"100%" }} onClick={nextRank}
-              disabled={(ranking_index||0) >= Math.min(ranked.length, 20)}>
-              {(ranking_index||0) >= Math.min(ranked.length,20) ? "✓ 発表完了" : `▶ 次の順位を発表 (残り${Math.min(ranked.length,20)-(ranking_index||0)}人)`}
-            </button>
-          )}
+          {(() => {
+            // 同点考慮で10位以内の人数を計算
+            const withRank = ranked.map(p => ({
+              ...p, rank: ranked.filter(q => (q.score||0) > (p.score||0)).length + 1
+            }));
+            const top10ForButton = withRank.filter(p => p.rank <= 10);
+            const total = top10ForButton.length;
+            const shown = ranking_index || 0;
+            return (ranking_index ?? -1) < 0 ? (
+              <button className="btn btn-gold" style={{ width:"100%" }} onClick={startRanking}>🏆 ランキング発表を開始する</button>
+            ) : (
+              <button className="btn btn-gold" style={{ width:"100%" }} onClick={nextRank}
+                disabled={shown >= total}>
+                {shown >= total ? "✓ 発表完了" : `▶ 次の順位を発表 (残り${total - shown}人)`}
+              </button>
+            );
+          })()}
         </div>
       )}
 
@@ -700,19 +709,24 @@ function DrumRoll({ rank, shownCount }) {
   useEffect(() => {
     if (shownCount <= 0 || shownCount === prevRef.current) return;
     prevRef.current = shownCount;
-    if (rank === null || rank > 10) return;
+    if (rank === null) return;
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
 
+    // ユーザー操作後にAudioContextを作成（ブラウザの自動再生ポリシー対応）
     try {
       const ctx = new AudioCtx();
-      if (rank === 1) {
-        playFanfare(ctx);
-      } else if (rank <= 3) {
-        playDrumRoll(ctx, 1.5, 0.8);
+      if (ctx.state === "suspended") {
+        ctx.resume().then(() => {
+          if (rank === 1) playFanfare(ctx);
+          else if (rank <= 3) playDrumRoll(ctx, 1.5, 0.8);
+          else playDrumRoll(ctx, 0.6, 0.5);
+        });
       } else {
-        playDrumRoll(ctx, 0.6, 0.5);
+        if (rank === 1) playFanfare(ctx);
+        else if (rank <= 3) playDrumRoll(ctx, 1.5, 0.8);
+        else playDrumRoll(ctx, 0.6, 0.5);
       }
     } catch(e) {
       console.warn("Audio error:", e);
