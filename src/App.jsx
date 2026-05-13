@@ -330,6 +330,8 @@ function ParticipantResultScreen({ nickname, score, myAnswers, questions }) {
   );
 }
 
+const HOST_PW = "keitaro2026";
+
 function HostLogin({ onLogin }) {
   const [pw, setPw] = useState(""); const [err, setErr] = useState("");
   function login() { if(pw===HOST_PW) onLogin(); else setErr("パスワードが違います"); }
