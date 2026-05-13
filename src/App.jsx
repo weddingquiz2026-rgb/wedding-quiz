@@ -479,30 +479,29 @@ function HostPanel({ quizState, participants }) {
 // DRUM ROLL COMPONENT（Web Audio API使用）
 // =============================================
 function DrumRoll({ rank, shownCount }) {
-  const prevShownCount = useRef(-1);
+  const prevRef = useRef(-1);
 
   useEffect(() => {
-    if (shownCount <= 0 || shownCount === prevShownCount.current) return;
-    prevShownCount.current = shownCount;
-    // 20位〜11位は音なし（rank >= 11）
+    if (shownCount <= 0 || shownCount === prevRef.current) return;
+    prevRef.current = shownCount;
     if (rank === null || rank > 10) return;
 
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = new AudioCtx();
       if (rank === 1) {
-        // 1位：長いドラムロール＋ファンファーレ＋紙吹雪
         playFanfare(ctx);
       } else if (rank <= 3) {
-        // 2〜3位：長めのドラムロール
         playDrumRoll(ctx, 1.5, 0.8);
       } else {
-        // 4〜10位：短いドラムロール
         playDrumRoll(ctx, 0.6, 0.5);
       }
     } catch(e) {
-      console.log("Audio not available:", e);
+      console.warn("Audio error:", e);
     }
-  }, [shownCount]);
+  }, [rank, shownCount]);
 
   return null;
 }
@@ -597,30 +596,24 @@ function ProjectionScreen({ quizState, participants }) {
   const ranked = [...participants].sort((a,b)=>(b.score||0)-(a.score||0));
 
   if (phase === "finished" && (ranking_index ?? -1) >= 0) {
-    const totalToShow = Math.min(ranked.length, 20);
     const shownCount = ranking_index || 0;
 
-    // ranked[0]=1位, ranked[19]=20位
-    // 表示フェーズ:
-    //   shownCount 1〜(totalToShow-10): 20位〜11位を積み上げ表示
-    //   shownCount (totalToShow-10+1)〜totalToShow: 10位〜1位を1人ずつ大きく表示
+    // 同点考慮のランク計算
+    // 例: 10点1人, 9点1人, 8点3人, 7点2人 → 1位,2位,3位,3位,3位,6位,6位
+    const rankedWithRank = ranked.map((p, i) => {
+      const rank = ranked.filter(q => q.score > p.score).length + 1;
+      return { ...p, rank };
+    });
 
-    const stackCount = Math.max(0, totalToShow - 10); // 20位〜11位の人数(最大10)
-    const isStackPhase = shownCount <= stackCount;
+    // 10位以内（rank<=10）の人だけ対象、スコア低い順に並べる（発表順）
+    const top10 = rankedWithRank.filter(p => p.rank <= 10).reverse();
 
-    // 積み上げフェーズ: 20位から順にshownCount人表示
-    // ranked配列は1位が先頭なので、20位=ranked[19], 11位=ranked[10]
-    const stackEntries = isStackPhase
-      ? ranked.slice(10, totalToShow).reverse().slice(0, shownCount)
-      : [];
-
-    // 1人表示フェーズ: stackCountを超えた分だけ10位〜1位を表示
-    // soloPhaseIndex=0 → 10位(ranked[9]), soloPhaseIndex=9 → 1位(ranked[0])
-    const soloPhaseIndex = isStackPhase ? -1 : shownCount - stackCount - 1;
-    const soloEntry = soloPhaseIndex >= 0 && soloPhaseIndex < 10 ? ranked[9 - soloPhaseIndex] : null;
-    const actualRank = soloEntry ? ranked.indexOf(soloEntry) + 1 : null;
+    // shownCount番目の人を表示（0-indexed）
+    const soloEntry = shownCount > 0 && shownCount <= top10.length ? top10[shownCount - 1] : null;
+    const actualRank = soloEntry ? soloEntry.rank : null;
     const isFirst = actualRank === 1;
     const isTop3 = actualRank !== null && actualRank <= 3;
+    const totalSteps = top10.length;
 
     return (
       <div style={{ minHeight:"100vh", background:"#0a0700", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 20px" }}>
@@ -629,19 +622,17 @@ function ProjectionScreen({ quizState, participants }) {
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.8rem,4vw,3rem)", fontWeight:300, marginBottom:32, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
-
         {shownCount === 0 ? (
           <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.2rem", letterSpacing:".2em" }}>進行者がボタンを押すと発表が始まります</p>
         ) : soloEntry ? (
-          // 10位〜1位：1人ずつ大きく表示
           <div key={soloEntry.nickname + shownCount} style={{
             display:"flex", flexDirection:"column", alignItems:"center", gap:24,
-            animation:"slideIn .5s ease both",
-            padding:"40px 60px", borderRadius:24,
+            animation:"slideIn .6s ease both",
+            padding:"48px 80px", borderRadius:24,
             background: isFirst?"rgba(255,215,0,.15)":isTop3?"rgba(201,168,76,.1)":"rgba(255,255,255,.04)",
             border: isFirst?"2px solid gold":isTop3?"1px solid var(--gold-d)":"1px solid rgba(201,168,76,.2)",
-            minWidth:"min(400px, 90vw)", textAlign:"center",
-            boxShadow: isFirst?"0 0 60px rgba(255,215,0,.3)":isTop3?"0 0 30px rgba(201,168,76,.2)":"none"
+            minWidth:"min(480px, 90vw)", textAlign:"center",
+            boxShadow: isFirst?"0 0 80px rgba(255,215,0,.4)":isTop3?"0 0 40px rgba(201,168,76,.25)":"none"
           }}>
             <span style={{ fontSize:"clamp(3rem,8vw,6rem)",
               color:actualRank===1?"#ffd700":actualRank===2?"#c0c0c0":actualRank===3?"#cd7f32":"rgba(245,234,208,.7)" }}>
@@ -654,37 +645,14 @@ function ProjectionScreen({ quizState, participants }) {
               {soloEntry.score||0}<span style={{ fontSize:".6em", color:"rgba(245,234,208,.5)" }}>点</span>
             </span>
           </div>
-        ) : (
-          // 20位〜11位：積み上げ表示
-          <div style={{ width:"100%", maxWidth:700, display:"flex", flexDirection:"column", gap:10 }}>
-            {stackEntries.map((entry) => {
-              const rank = ranked.indexOf(entry) + 1;
-              return (
-                <div key={entry.nickname} style={{ display:"flex", alignItems:"center", gap:20, padding:"14px 24px", borderRadius:12,
-                  animation:"slideIn .5s ease both",
-                  background:"rgba(255,255,255,.04)",
-                  border:"1px solid rgba(201,168,76,.2)" }}>
-                  <span style={{ fontSize:"clamp(1.2rem,3vw,1.8rem)", minWidth:60, textAlign:"center", color:"rgba(245,234,208,.5)" }}>
-                    {rank}位
-                  </span>
-                  <span style={{ flex:1, fontSize:"clamp(1rem,2.5vw,1.6rem)", fontFamily:"'Noto Serif JP'" }}>{entry.nickname}</span>
-                  <span style={{ fontFamily:"'Noto Serif JP'", fontSize:"clamp(1rem,2.5vw,1.6rem)", fontWeight:600, color:"var(--gold)" }}>
-                    {entry.score||0}<span style={{ fontSize:".7em", color:"rgba(245,234,208,.4)" }}>点</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
+        ) : null}
         <p style={{ marginTop:24, color:"rgba(245,234,208,.25)", fontSize:".85rem" }}>
-          {shownCount > 0 && shownCount < totalToShow && `残り ${totalToShow - shownCount} 人`}
+          {shownCount > 0 && shownCount < totalSteps && `残り ${totalSteps - shownCount} 人`}
         </p>
       </div>
     );
-  }
 
-  if (phase === "waiting" || current_q < 0) {
+    if (phase === "waiting" || current_q < 0) {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700" }}>
         <div style={{ fontSize:"4rem", marginBottom:20, animation:"pulse 2s ease infinite" }}>💍</div>
