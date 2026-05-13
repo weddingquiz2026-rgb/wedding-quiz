@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ========== SUPABASE CONFIG ==========
@@ -701,124 +701,6 @@ function HostPanel({ quizState, participants }) {
 }
 
 // =============================================
-// DRUM ROLL COMPONENT（Web Audio API使用）
-// =============================================
-function DrumRoll({ rank, shownCount }) {
-  const prevRef = useRef(-1);
-
-  useEffect(() => {
-    if (shownCount <= 0 || shownCount === prevRef.current) return;
-    prevRef.current = shownCount;
-    if (rank === null) return;
-
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-
-    // ユーザー操作後にAudioContextを作成（ブラウザの自動再生ポリシー対応）
-    try {
-      const ctx = new AudioCtx();
-      if (ctx.state === "suspended") {
-        ctx.resume().then(() => {
-          if (rank === 1) playFanfare(ctx);
-          else if (rank <= 3) playDrumRoll(ctx, 1.5, 0.8);
-          else playDrumRoll(ctx, 0.6, 0.5);
-        });
-      } else {
-        if (rank === 1) playFanfare(ctx);
-        else if (rank <= 3) playDrumRoll(ctx, 1.5, 0.8);
-        else playDrumRoll(ctx, 0.6, 0.5);
-      }
-    } catch(e) {
-      console.warn("Audio error:", e);
-    }
-  }, [rank, shownCount]);
-
-  return null;
-}
-
-function playDrumRoll(ctx, duration, volume) {
-  const startTime = ctx.currentTime;
-  const steps = Math.floor(duration * 20);
-  for (let i = 0; i < steps; i++) {
-    const t = startTime + (i / steps) * duration;
-    const interval = 0.05 - (i / steps) * 0.04; // だんだん速くなる
-    if (i % Math.max(1, Math.floor((steps - i) / 8)) === 0) {
-      playSnare(ctx, t, volume * (0.5 + (i / steps) * 0.5));
-    }
-  }
-  // 最後にシンバル
-  playCymbal(ctx, startTime + duration, volume);
-}
-
-function playFanfare(ctx) {
-  const startTime = ctx.currentTime;
-  // ドラムロール（長め）
-  playDrumRoll(ctx, 2.0, 1.0);
-
-  // ファンファーレ音（ド・ミ・ソ・ド）
-  const notes = [523.25, 659.25, 783.99, 1046.5];
-  const times = [2.1, 2.4, 2.7, 3.0];
-  notes.forEach((freq, i) => {
-    playTone(ctx, freq, startTime + times[i], 0.4, 0.8);
-  });
-  // 最後に和音
-  [523.25, 659.25, 783.99].forEach(freq => {
-    playTone(ctx, freq, startTime + 3.5, 1.0, 0.6);
-  });
-}
-
-function playSnare(ctx, time, volume) {
-  const bufferSize = ctx.sampleRate * 0.1;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
-  }
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  const gainNode = ctx.createGain();
-  gainNode.gain.setValueAtTime(volume, time);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-  source.connect(gainNode);
-  gainNode.connect(ctx.destination);
-  source.start(time);
-}
-
-function playCymbal(ctx, time, volume) {
-  const bufferSize = ctx.sampleRate * 0.5;
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
-  }
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "highpass";
-  filter.frequency.value = 8000;
-  const gainNode = ctx.createGain();
-  gainNode.gain.setValueAtTime(volume, time);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
-  source.connect(filter);
-  filter.connect(gainNode);
-  gainNode.connect(ctx.destination);
-  source.start(time);
-}
-
-function playTone(ctx, frequency, time, duration, volume) {
-  const osc = ctx.createOscillator();
-  const gainNode = ctx.createGain();
-  osc.frequency.value = frequency;
-  osc.type = "triangle";
-  gainNode.gain.setValueAtTime(volume, time);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, time + duration);
-  osc.connect(gainNode);
-  gainNode.connect(ctx.destination);
-  osc.start(time);
-  osc.stop(time + duration);
-}
-
-// =============================================
 // PROJECTION SCREEN
 // =============================================
 function ProjectionScreen({ quizState, participants }) {
@@ -847,7 +729,6 @@ function ProjectionScreen({ quizState, participants }) {
     return (
       <div style={{ minHeight:"100vh", background:"#0a0700", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 20px" }}>
         {isFirst && <Confetti />}
-        <DrumRoll rank={actualRank} shownCount={shownCount} />
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.8rem,4vw,3rem)", fontWeight:300, marginBottom:40, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
