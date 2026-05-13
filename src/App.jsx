@@ -732,11 +732,7 @@ function ProjectionScreen({ quizState, participants }) {
         <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.8rem,4vw,3rem)", fontWeight:300, marginBottom:40, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
-        {shownCount === 0 ? (
-          <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.2rem", letterSpacing:".2em", textAlign:"center" }}>
-            進行者がボタンを押すと発表が始まります
-          </p>
-        ) : currentEntry ? (
+        {shownCount === 0 ? null : currentEntry ? (
           <div key={currentEntry.nickname + shownCount} style={{
             display:"flex", flexDirection:"column", alignItems:"center", gap:24,
             animation:"slideIn .6s ease both",
