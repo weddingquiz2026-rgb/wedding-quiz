@@ -641,18 +641,24 @@ function LiveTab({ quizState, participants }) {
           <p style={{ color:"rgba(245,234,208,.3)", fontSize:".85rem" }}>まだ参加者がいません</p>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {ranked.map((p,i)=>(
-              <div key={p.nickname} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 14px", borderRadius:8,
-                background:i<3?"rgba(201,168,76,.08)":"transparent", border:i<3?"1px solid rgba(201,168,76,.18)":"1px solid transparent" }}>
-                <span style={{ minWidth:32, fontSize:".95rem", color:i===0?"#ffd700":i===1?"#c0c0c0":i===2?"#cd7f32":"rgba(245,234,208,.35)" }}>
-                  {i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}位`}
-                </span>
-                <span style={{ flex:1, fontSize:".92rem" }}>{p.nickname}</span>
-                <span style={{ color:"var(--gold)", fontFamily:"'Cormorant Garamond'", fontSize:"1.15rem" }}>
-                  {p.score||0}<span style={{ fontSize:".68rem", color:"rgba(245,234,208,.35)", marginLeft:3 }}>/ {closedCount}</span>
-                </span>
-              </div>
-            ))}
+            {ranked.map((p)=>{
+              const rank = ranked.filter(q => (q.score||0) > (p.score||0)).length + 1;
+              const isTop3 = rank <= 3;
+              return (
+                <div key={p.nickname} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 14px", borderRadius:8,
+                  background:isTop3?"rgba(201,168,76,.08)":"transparent",
+                  border:isTop3?"1px solid rgba(201,168,76,.18)":"1px solid transparent" }}>
+                  <span style={{ minWidth:32, fontSize:".95rem",
+                    color:rank===1?"#ffd700":rank===2?"#c0c0c0":rank===3?"#cd7f32":"rgba(245,234,208,.35)" }}>
+                    {rank===1?"🥇":rank===2?"🥈":rank===3?"🥉":`${rank}位`}
+                  </span>
+                  <span style={{ flex:1, fontSize:".92rem" }}>{p.nickname}</span>
+                  <span style={{ color:"var(--gold)", fontFamily:"'Cormorant Garamond'", fontSize:"1.15rem" }}>
+                    {p.score||0}<span style={{ fontSize:".68rem", color:"rgba(245,234,208,.35)", marginLeft:3 }}>/ {closedCount}</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
