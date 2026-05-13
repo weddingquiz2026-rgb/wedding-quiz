@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 // ========== SUPABASE CONFIG ==========
 // ⚠️ 以下の値をSupabaseの設定情報に書き換えてください
 const SUPABASE_URL = "https://fdpujjudmnqlzrfcewll.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkcHVqanVkbW5xbHpyZmNld2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMTYxMzIsImV4cCI6MjA5Mzc5MjEzMn0.8WxFY14THw5I87b7BK0C6MmUAsG1aPDFfL50CPxILhI";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkcHVqanVkbW5xbHpyZmNld2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMTYxMzIsImV4cCI6MjA5Mzc5MjEzMn0.8WxFY14THw5I87b7BK0C6MmUAsG1aPDFfL50CPxILhIKEY";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -593,45 +593,46 @@ function playTone(ctx, frequency, time, duration, volume) {
 // =============================================
 function ProjectionScreen({ quizState, participants }) {
   const { questions, current_q, phase, ranking_index } = quizState;
-  const ranked = [...participants].sort((a,b)=>(b.score||0)-(a.score||0));
 
-  if (phase === "finished" && (ranking_index ?? -1) >= 0) {
-    const shownCount = ranking_index || 0;
+  // 同点考慮のランク計算（上位に何人いるかで順位決定）
+  const sorted = [...participants].sort((a,b)=>(b.score||0)-(a.score||0));
+  const withRank = sorted.map(p => ({
+    ...p,
+    rank: sorted.filter(q => q.score > p.score).length + 1
+  }));
 
-    // 同点考慮のランク計算
-    // 例: 10点1人, 9点1人, 8点3人, 7点2人 → 1位,2位,3位,3位,3位,6位,6位
-    const rankedWithRank = ranked.map((p, i) => {
-      const rank = ranked.filter(q => q.score > p.score).length + 1;
-      return { ...p, rank };
-    });
+  // 10位以内の人だけ（rank<=10）、低い順に並べ直す（発表は下位から）
+  const top10 = withRank.filter(p => p.rank <= 10).reverse();
+  const shownCount = ranking_index ?? -1;
+  const totalSteps = top10.length;
 
-    // 10位以内（rank<=10）の人だけ対象、スコア低い順に並べる（発表順）
-    const top10 = rankedWithRank.filter(p => p.rank <= 10).reverse();
+  // 現在表示する人（shownCount=0は待機、1〜がボタンを押した回数）
+  const currentEntry = shownCount > 0 && shownCount <= totalSteps ? top10[shownCount - 1] : null;
+  const actualRank = currentEntry ? currentEntry.rank : null;
+  const isFirst = actualRank === 1;
+  const isTop3 = actualRank !== null && actualRank <= 3;
 
-    // shownCount番目の人を表示（0-indexed）
-    const soloEntry = shownCount > 0 && shownCount <= top10.length ? top10[shownCount - 1] : null;
-    const actualRank = soloEntry ? soloEntry.rank : null;
-    const isFirst = actualRank === 1;
-    const isTop3 = actualRank !== null && actualRank <= 3;
-    const totalSteps = top10.length;
-
+  // ランキング発表画面
+  if (phase === "finished" && shownCount >= 0) {
     return (
       <div style={{ minHeight:"100vh", background:"#0a0700", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"40px 20px" }}>
         {isFirst && <Confetti />}
         <DrumRoll rank={actualRank} shownCount={shownCount} />
-        <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.8rem,4vw,3rem)", fontWeight:300, marginBottom:32, letterSpacing:".15em" }}>
+        <h2 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"clamp(1.8rem,4vw,3rem)", fontWeight:300, marginBottom:40, letterSpacing:".15em" }}>
           🏆 ランキング発表
         </h2>
         {shownCount === 0 ? (
-          <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.2rem", letterSpacing:".2em" }}>進行者がボタンを押すと発表が始まります</p>
-        ) : soloEntry ? (
-          <div key={soloEntry.nickname + shownCount} style={{
+          <p style={{ color:"rgba(245,234,208,.4)", fontSize:"1.2rem", letterSpacing:".2em", textAlign:"center" }}>
+            進行者がボタンを押すと発表が始まります
+          </p>
+        ) : currentEntry ? (
+          <div key={currentEntry.nickname + shownCount} style={{
             display:"flex", flexDirection:"column", alignItems:"center", gap:24,
             animation:"slideIn .6s ease both",
-            padding:"48px 80px", borderRadius:24,
+            padding:"48px 80px", borderRadius:24, textAlign:"center",
             background: isFirst?"rgba(255,215,0,.15)":isTop3?"rgba(201,168,76,.1)":"rgba(255,255,255,.04)",
             border: isFirst?"2px solid gold":isTop3?"1px solid var(--gold-d)":"1px solid rgba(201,168,76,.2)",
-            minWidth:"min(480px, 90vw)", textAlign:"center",
+            minWidth:"min(480px, 90vw)",
             boxShadow: isFirst?"0 0 80px rgba(255,215,0,.4)":isTop3?"0 0 40px rgba(201,168,76,.25)":"none"
           }}>
             <span style={{ fontSize:"clamp(3rem,8vw,6rem)",
@@ -639,10 +640,10 @@ function ProjectionScreen({ quizState, participants }) {
               {actualRank===1?"🥇":actualRank===2?"🥈":actualRank===3?"🥉":`${actualRank}位`}
             </span>
             <span style={{ fontSize:"clamp(2rem,5vw,3.5rem)", fontFamily:"'Noto Serif JP'", color:"var(--cream)", fontWeight:300 }}>
-              {soloEntry.nickname}
+              {currentEntry.nickname}
             </span>
             <span style={{ fontFamily:"'Noto Serif JP'", fontSize:"clamp(1.5rem,4vw,2.5rem)", fontWeight:600, color:"var(--gold-l)" }}>
-              {soloEntry.score||0}<span style={{ fontSize:".6em", color:"rgba(245,234,208,.5)" }}>点</span>
+              {currentEntry.score||0}<span style={{ fontSize:".6em", color:"rgba(245,234,208,.5)" }}>点</span>
             </span>
           </div>
         ) : null}
@@ -651,8 +652,10 @@ function ProjectionScreen({ quizState, participants }) {
         </p>
       </div>
     );
+  }
 
-    if (phase === "waiting" || current_q < 0) {
+  // 待機画面
+  if (phase === "waiting" || current_q < 0) {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700" }}>
         <div style={{ fontSize:"4rem", marginBottom:20, animation:"pulse 2s ease infinite" }}>💍</div>
@@ -666,6 +669,7 @@ function ProjectionScreen({ quizState, participants }) {
   const q = questions[current_q];
   if (!q) return null;
 
+  // 正解発表画面
   if (phase === "revealing") {
     return (
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
@@ -678,6 +682,7 @@ function ProjectionScreen({ quizState, participants }) {
     );
   }
 
+  // 出題中画面
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
       <ProgressBar current={current_q} />
@@ -691,9 +696,7 @@ function ProjectionScreen({ quizState, participants }) {
   );
 }
 
-// =============================================
-// MAIN
-// =============================================
+
 export default function App() {
   const [view, setView] = useState("welcome");
   const [nickname, setNickname] = useState("");
