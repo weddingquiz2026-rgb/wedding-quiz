@@ -599,17 +599,25 @@ function ProjectionScreen({ quizState, participants }) {
   if (phase === "finished" && (ranking_index ?? -1) >= 0) {
     const totalToShow = Math.min(ranked.length, 20);
     const shownCount = ranking_index || 0;
-    const totalToShow = Math.min(ranked.length, 20);
-    const shownCount = ranking_index || 0;
 
-    // 20位〜11位：積み上げ表示（最大10人）
-    const stackEntries = ranked.slice(10, totalToShow).reverse().slice(0, Math.min(shownCount, totalToShow - 10));
+    // ranked[0]=1位, ranked[19]=20位
+    // 表示フェーズ:
+    //   shownCount 1〜(totalToShow-10): 20位〜11位を積み上げ表示
+    //   shownCount (totalToShow-10+1)〜totalToShow: 10位〜1位を1人ずつ大きく表示
 
-    // 10位〜1位：1人ずつ大きく表示
-    // shownCountが(totalToShow-10)を超えたら1人表示モード
-    const stackMax = totalToShow - 10; // 20位〜11位の人数
-    const soloIndex = shownCount > stackMax ? shownCount - stackMax - 1 : -1;
-    const soloEntry = soloIndex >= 0 ? ranked.slice(0, 10).reverse()[soloIndex] : null;
+    const stackCount = Math.max(0, totalToShow - 10); // 20位〜11位の人数(最大10)
+    const isStackPhase = shownCount <= stackCount;
+
+    // 積み上げフェーズ: 20位から順にshownCount人表示
+    // ranked配列は1位が先頭なので、20位=ranked[19], 11位=ranked[10]
+    const stackEntries = isStackPhase
+      ? ranked.slice(10, totalToShow).reverse().slice(0, shownCount)
+      : [];
+
+    // 1人表示フェーズ: stackCountを超えた分だけ10位〜1位を表示
+    // soloPhaseIndex=0 → 10位(ranked[9]), soloPhaseIndex=9 → 1位(ranked[0])
+    const soloPhaseIndex = isStackPhase ? -1 : shownCount - stackCount - 1;
+    const soloEntry = soloPhaseIndex >= 0 && soloPhaseIndex < 10 ? ranked[9 - soloPhaseIndex] : null;
     const actualRank = soloEntry ? ranked.indexOf(soloEntry) + 1 : null;
     const isFirst = actualRank === 1;
     const isTop3 = actualRank !== null && actualRank <= 3;
