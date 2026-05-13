@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 // ========== SUPABASE CONFIG ==========
 // ⚠️ 以下の値をSupabaseの設定情報に書き換えてください
 const SUPABASE_URL = "https://fdpujjudmnqlzrfcewll.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkcHVqanVkbW5xbHpyZmNld2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMTYxMzIsImV4cCI6MjA5Mzc5MjEzMn0.8WxFY14THw5I87b7BK0C6MmUAsG1aPDFfL50CPxILhIKEY";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkcHVqanVkbW5xbHpyZmNld2xsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMTYxMzIsImV4cCI6MjA5Mzc5MjEzMn0.8WxFY14THw5I87b7BK0C6MmUAsG1aPDFfL50CPxILhI";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
