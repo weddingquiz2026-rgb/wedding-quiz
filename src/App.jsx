@@ -20,7 +20,8 @@ const defaultQuestions = () =>
 
 const defaultQuizState = () => ({
   questions: defaultQuestions(),
-  current_q: -1,
+  trial_question: { text: "", answer: null, is_open: false, is_closed: false },
+  current_q: -1,   // -1=waiting, -2=trial中, 0-9=本番問題
   phase: "waiting",
   ranking_index: -1,
 });
@@ -160,6 +161,58 @@ function WaitingScreen({ nickname }) {
             <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:"var(--gold)", animation:`pulse 1.4s ${i*.35}s ease infinite` }} />
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 練習問題画面（スコアなし）
+function TrialScreen({ question }) {
+  const [selectedAns, setSelectedAns] = useState(null);
+  const [selectedBet, setSelectedBet] = useState(null);
+  const submitted = selectedAns !== null && selectedBet !== null;
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+      <div className="card fade" style={{ maxWidth:460, width:"100%", padding:"36px 28px", textAlign:"center" }}>
+        <div style={{ display:"inline-block", padding:"4px 16px", borderRadius:20, background:"rgba(100,200,100,.12)",
+          border:"1px solid rgba(100,200,100,.3)", marginBottom:16 }}>
+          <p style={{ fontSize:".72rem", color:"rgba(100,220,100,.8)", letterSpacing:".15em" }}>🎯 練習問題 — スコアに影響しません</p>
+        </div>
+        <div className="divider" />
+        <p style={{ fontSize:"clamp(.95rem,3.5vw,1.15rem)", lineHeight:2, margin:"20px 0 24px", fontFamily:"'Noto Serif JP'" }}>
+          {question.text}
+        </p>
+        <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.5)", marginBottom:10, letterSpacing:".1em" }}>回答を選んでください</p>
+        <div style={{ display:"flex", gap:16, justifyContent:"center", marginBottom:24 }}>
+          <button className={`btn-yes ${selectedAns===true?"sel-yes":""}`}
+            onClick={()=>setSelectedAns(true)}>Yes</button>
+          <button className={`btn-no ${selectedAns===false?"sel-no":""}`}
+            onClick={()=>setSelectedAns(false)}>No</button>
+        </div>
+        <p style={{ fontSize:".75rem", color:"rgba(245,234,208,.5)", marginBottom:10, letterSpacing:".1em" }}>自信度を選んでください（練習なので結果に影響しません）</p>
+        <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+          {[1,2,3].map(b => (
+            <button key={b} onClick={()=>setSelectedBet(b)} style={{
+              width:72, height:72, borderRadius:12, border:"none", cursor:"pointer",
+              fontFamily:"inherit", fontSize:"1.3rem", fontWeight:700, transition:"all .2s",
+              background: selectedBet===b ? "linear-gradient(135deg,var(--gold-d),var(--gold),var(--gold-l))" : "rgba(201,168,76,.1)",
+              color: selectedBet===b ? "#140f05" : "var(--gold)",
+              outline: selectedBet===b ? "3px solid var(--gold)" : "none",
+              outlineOffset: 3,
+              transform: selectedBet===b ? "scale(1.08)" : "scale(1)",
+            }}>{b}点</button>
+          ))}
+        </div>
+        {submitted ? (
+          <p style={{ marginTop:20, color:"rgba(100,220,100,.8)", fontSize:".82rem", animation:"fadeUp .4s ease" }}>
+            ✓ 練習回答完了！本番もこの調子で！
+          </p>
+        ) : (
+          <p style={{ marginTop:20, color:"rgba(245,234,208,.3)", fontSize:".78rem" }}>
+            回答と自信度の両方を選んでください
+          </p>
+        )}
       </div>
     </div>
   );
@@ -353,11 +406,13 @@ function HostLogin({ onLogin }) {
 
 function SetupTab({ quizState }) {
   const [texts, setTexts] = useState(quizState.questions.map(q=>q.text));
+  const [trialText, setTrialText] = useState(quizState.trial_question?.text || "");
   const [saved, setSaved] = useState(false);
 
   async function save() {
     const questions = quizState.questions.map((q,i)=>({...q, text:texts[i]}));
-    await supabase.from("quiz_state").update({ questions }).eq("id", 1);
+    const trial_question = { ...(quizState.trial_question||{}), text:trialText };
+    await supabase.from("quiz_state").update({ questions, trial_question }).eq("id", 1);
     setSaved(true);
     setTimeout(()=>setSaved(false), 2000);
   }
@@ -368,6 +423,18 @@ function SetupTab({ quizState }) {
         📝 事前に問題文を入力しておきましょう。<br/>
         <strong style={{ color:"var(--gold)" }}>正解（YesかNo）は当日、新郎新婦の答えを聞いてから</strong>「② 当日進行」タブで入力します。
       </div>
+
+      {/* 練習問題 */}
+      <div style={{ padding:"12px 16px", borderRadius:10, background:"rgba(100,200,100,.05)", border:"1px solid rgba(100,200,100,.2)" }}>
+        <p style={{ fontSize:".78rem", color:"rgba(100,220,100,.7)", marginBottom:8, letterSpacing:".1em" }}>🎯 練習問題（スコアに影響しません）</p>
+        <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+          <span style={{ color:"rgba(100,220,100,.7)", fontFamily:"'Cormorant Garamond'", fontSize:"1.1rem", paddingTop:10, minWidth:30 }}>練習</span>
+          <textarea rows={2} placeholder="練習問題の問題文を入力…" value={trialText}
+            onChange={e=>setTrialText(e.target.value)} />
+        </div>
+      </div>
+
+      {/* 本番問題 */}
       {texts.map((t,i)=>(
         <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
           <span style={{ color:"var(--gold)", fontFamily:"'Cormorant Garamond'", fontSize:"1.1rem", paddingTop:10, minWidth:30 }}>Q{i+1}</span>
@@ -390,6 +457,19 @@ function LiveTab({ quizState, participants }) {
 
   async function updateQuizState(updates) {
     await supabase.from("quiz_state").update(updates).eq("id", 1);
+  }
+
+  async function startTrialQuestion() {
+    const trial = { ...(quizState.trial_question||{}), is_open:true, is_closed:false, answer:null };
+    setLiveAnswer(null);
+    await updateQuizState({ trial_question:trial, current_q:-2, phase:"trial" });
+  }
+
+  async function closeTrialAndReveal() {
+    if (liveAnswer === null) { alert("正解（YesかNo）を選択してください"); return; }
+    const trial = { ...(quizState.trial_question||{}), is_open:false, is_closed:true, answer:liveAnswer };
+    await updateQuizState({ trial_question:trial, phase:"waiting", current_q:-1 });
+    setLiveAnswer(null);
   }
 
   async function startQuestion(idx) {
@@ -434,8 +514,10 @@ function LiveTab({ quizState, participants }) {
         background: phase==="open" ? "rgba(201,168,76,.12)" : "rgba(255,255,255,.03)",
         display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
         <span style={{ fontSize:".85rem", color:"var(--gold)" }}>
-          {phase==="waiting" && current_q<0 && "⏳ クイズ開始前"}
+          {phase==="waiting" && current_q===-1 && "⏳ クイズ開始前"}
+          {phase==="waiting" && current_q===-2 && "✅ 練習問題 終了"}
           {phase==="waiting" && current_q>=0 && current_q<10 && `✅ 第${current_q+1}問 終了 — 次の問題を出題してください`}
+          {phase==="trial" && "🎯 練習問題 回答受付中"}
           {phase==="open" && `📢 第${current_q+1}問 回答受付中`}
           {phase==="revealing" && `🔍 第${current_q+1}問 正解発表中`}
           {phase==="finished" && "🏆 全問終了！ランキングを発表してください"}
@@ -461,11 +543,42 @@ function LiveTab({ quizState, participants }) {
                 ✓ 正解確定・回答を締め切る
               </button>
             </>
+          ) : phase === "trial" ? (
+            <>
+              <p style={{ fontSize:".7rem", color:"rgba(100,220,100,.8)", letterSpacing:".15em", marginBottom:10 }}>🎯 練習問題 — 回答受付中（スコアに影響しません）</p>
+              <p style={{ fontSize:"1rem", lineHeight:1.9, marginBottom:20, color:"var(--cream)", fontFamily:"'Noto Serif JP'" }}>{quizState.trial_question?.text}</p>
+              <div style={{ padding:"14px 16px", borderRadius:10, background:"rgba(100,200,100,.06)", border:"1px solid rgba(100,200,100,.2)", marginBottom:16 }}>
+                <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.7)", marginBottom:12 }}>🎤 新郎新婦の答えを聞いて、正解を入力：</p>
+                <div style={{ display:"flex", gap:14, justifyContent:"center" }}>
+                  <button className={`btn-yes ${liveAnswer===true?"sel-yes":""}`} style={{ opacity:liveAnswer===false?.45:1 }} onClick={()=>setLiveAnswer(true)}>Yes</button>
+                  <button className={`btn-no ${liveAnswer===false?"sel-no":""}`} style={{ opacity:liveAnswer===true?.45:1 }} onClick={()=>setLiveAnswer(false)}>No</button>
+                </div>
+              </div>
+              <button className="btn btn-gold" style={{ width:"100%" }} onClick={closeTrialAndReveal} disabled={liveAnswer===null}>
+                ✓ 正解確定・練習問題を締め切る
+              </button>
+            </>
           ) : phase === "revealing" ? (
             <p style={{ textAlign:"center", color:"var(--gold)", fontSize:".9rem", padding:"20px 0" }}>🔍 正解発表中… 4秒後に自動で次へ進みます</p>
           ) : (
             <>
               <p style={{ fontSize:".82rem", color:"rgba(245,234,208,.6)", marginBottom:16 }}>出題する問題を選んでください：</p>
+
+              {/* 練習問題ボタン */}
+              {current_q === -1 && quizState.trial_question?.text && !quizState.trial_question?.is_closed && (
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12, padding:"10px 14px", borderRadius:10,
+                  background:"rgba(100,200,100,.06)", border:"1px solid rgba(100,200,100,.2)" }}>
+                  <span style={{ color:"rgba(100,220,100,.7)", fontSize:".85rem", minWidth:40 }}>練習</span>
+                  <span style={{ flex:1, fontSize:".87rem", color:"rgba(245,234,208,.7)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {quizState.trial_question.text}
+                  </span>
+                  <button className="btn btn-gold" style={{ fontSize:".75rem", padding:"6px 14px", whiteSpace:"nowrap" }}
+                    onClick={startTrialQuestion}>
+                    🎯 練習出題
+                  </button>
+                </div>
+              )}
+
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {questions.map((q,i)=>{
                   const done = q.is_closed;
@@ -741,6 +854,26 @@ function ProjectionScreen({ quizState, participants }) {
     );
   }
 
+  // 練習問題投影画面
+  if (phase === "trial") {
+    const tq = quizState.trial_question;
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
+        <div style={{ display:"inline-block", padding:"6px 24px", borderRadius:20, background:"rgba(100,200,100,.12)",
+          border:"1px solid rgba(100,200,100,.3)", marginBottom:24 }}>
+          <p style={{ fontSize:"1rem", color:"rgba(100,220,100,.8)", letterSpacing:".2em" }}>🎯 練習問題</p>
+        </div>
+        <p style={{ fontSize:"clamp(1.5rem,4vw,2.8rem)", color:"var(--cream)", lineHeight:1.8, maxWidth:900, fontFamily:"'Noto Serif JP'", animation:"fadeUp .6s ease" }}>
+          {tq?.text}
+        </p>
+        <div style={{ display:"flex", gap:60, marginTop:60, fontSize:"clamp(4rem,12vw,8rem)", color:"rgba(245,234,208,.2)" }}>
+          <span>Yes</span><span>No</span>
+        </div>
+        <p style={{ marginTop:40, color:"rgba(245,234,208,.4)", fontSize:"1rem", letterSpacing:".2em", animation:"pulse 1.5s ease infinite" }}>スマホで回答してください</p>
+      </div>
+    );
+  }
+
   // 待機画面
   if (phase === "waiting" || current_q < 0) {
     return (
@@ -841,6 +974,15 @@ export default function App() {
       const me = participants.find(p=>p.nickname===nickname);
       return <><Styles /><ParticipantResultScreen nickname={nickname} score={me?.score||0} myAnswers={myAnswers} questions={quizState.questions} /></>;
     }
+    // 練習問題フェーズ
+    if (phase === "trial") {
+      const trialQ = quizState.questions ? quizState.trial_question : null;
+      const tq = quizState.trial_question;
+      if (tq) {
+        return <><Styles /><TrialScreen question={tq} /></>;
+      }
+    }
+
     if ((phase === "open" || phase === "revealing") && current_q >= 0 && current_q < 10) {
       if (phase === "revealing") {
         return <><Styles /><AnswerRevealScreen question={questions[current_q]} myAnswer={myAnswers[current_q]} /></>;
