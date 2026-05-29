@@ -102,7 +102,23 @@ function WelcomeScreen({ onJoin, onHost }) {
       </h1>
       <p style={{ color:"rgba(245,234,208,.55)", fontSize:".85rem", marginTop:8, letterSpacing:".2em" }}>ふたりのことを、どれだけ知っていますか？</p>
       <Ornament />
-      <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300, marginTop:8 }}>
+
+      {/* ブラウザで開くよう案内 */}
+      <div style={{ width:"100%", maxWidth:320, marginBottom:16, padding:"14px 16px", borderRadius:12,
+        background:"rgba(201,168,76,.08)", border:"1px solid rgba(201,168,76,.25)" }}>
+        <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.6)", lineHeight:1.9, textAlign:"center", marginBottom:10 }}>
+          QRコードで開いた方はこちら<br/>
+          <span style={{ fontSize:".72rem", color:"rgba(245,234,208,.4)" }}>ゲーム中に画面が消えないようにするため</span>
+        </p>
+        <a href={window.location.href} target="_blank" rel="noopener noreferrer"
+          style={{ display:"block", textAlign:"center", padding:"10px 16px", borderRadius:8,
+            background:"linear-gradient(135deg,var(--gold-d),var(--gold))", color:"#140f05",
+            fontWeight:600, fontSize:".9rem", textDecoration:"none" }}>
+          📱 ブラウザで開く
+        </a>
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300 }}>
         <button className="btn btn-gold" style={{ fontSize:"1.05rem", padding:16 }} onClick={onJoin}>Yes/No クイズに参加する</button>
         <button className="btn btn-outline" style={{ fontSize:".8rem" }} onClick={onHost}>進行者はこちら</button>
       </div>
@@ -120,11 +136,16 @@ function JoinScreen({ onEnter }) {
     if (!t) { setErr("ニックネームを入力してください"); return; }
     if (t.length > 16) { setErr("16文字以内でお願いします"); return; }
     setLoading(true);
-    // Check duplicate
-    const { data } = await supabase.from("participants").select("nickname").eq("nickname", t).single();
-    if (data) { setErr("このニックネームはすでに使われています"); setLoading(false); return; }
-    // Register
-    await supabase.from("participants").insert({ nickname: t, answers: Array(10).fill(null), score: 0 });
+    // 既存ニックネームチェック
+    const { data } = await supabase.from("participants").select("*").eq("nickname", t).single();
+    if (data) {
+      // 既存ユーザーはそのまま続きから参加
+      setLoading(false);
+      onEnter(t);
+      return;
+    }
+    // 新規登録
+    await supabase.from("participants").insert({ nickname: t, answers: Array(10).fill(null).map(()=>({answer:null,bet:null})), score: 0 });
     setLoading(false);
     onEnter(t);
   }
@@ -905,7 +926,21 @@ export default function App() {
     <>
       <Styles />
       {view==="welcome" && <WelcomeScreen onJoin={()=>setView("join")} onHost={()=>setView("host-login")} />}
-      {view==="join" && <JoinScreen onEnter={name=>{setNickname(name);setView("participant");}} />}
+      {view==="join" && <JoinScreen onEnter={async (name) => {
+        setNickname(name);
+        // 既存の回答データを復元
+        const { data } = await supabase.from("participants").select("answers").eq("nickname", name).single();
+        if (data?.answers && Array.isArray(data.answers)) {
+          // bet形式({answer, bet})かどうかチェックして復元
+          const restored = data.answers.map(a =>
+            a && typeof a === 'object' && 'answer' in a
+              ? a
+              : { answer: null, bet: null }
+          );
+          setMyAnswers(restored);
+        }
+        setView("participant");
+      }} />}
     </>
   );
 }
