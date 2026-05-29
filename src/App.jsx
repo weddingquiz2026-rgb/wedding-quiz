@@ -474,8 +474,12 @@ function LiveTab({ quizState, participants }) {
   async function closeTrialAndReveal() {
     if (liveAnswer === null) { alert("正解（YesかNo）を選択してください"); return; }
     const trial = { ...(quizState.trial_question||{}), is_open:false, is_closed:true, answer:liveAnswer };
-    await updateQuizState({ trial_question:trial, phase:"waiting", current_q:-1 });
+    await updateQuizState({ trial_question:trial, phase:"trial_revealing", current_q:-2 });
     setLiveAnswer(null);
+    // 4秒後にwaitingに戻る
+    setTimeout(async () => {
+      await updateQuizState({ phase:"waiting", current_q:-1 });
+    }, 4000);
   }
 
   async function startQuestion(idx) {
@@ -534,6 +538,7 @@ function LiveTab({ quizState, participants }) {
           {phase==="waiting" && current_q===-2 && "✅ 練習問題 終了"}
           {phase==="waiting" && current_q>=0 && current_q<10 && `✅ 第${current_q+1}問 終了 — 次の問題を出題してください`}
           {phase==="trial" && "🎯 練習問題 回答受付中"}
+          {phase==="trial_revealing" && "🔍 練習問題 正解発表中（4秒後に自動で終了）"}
           {phase==="open" && `📢 第${current_q+1}問 回答受付中`}
           {phase==="revealing" && `🔍 第${current_q+1}問 正解発表中`}
           {phase==="finished" && "🏆 全問終了！ランキングを発表してください"}
@@ -787,6 +792,24 @@ function ProjectionScreen({ quizState, participants }) {
     );
   }
 
+  // 練習問題正解発表投影画面
+  if (phase === "trial_revealing") {
+    const tq = quizState.trial_question;
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:"#0a0700", padding:40, textAlign:"center" }}>
+        <div style={{ display:"inline-block", padding:"6px 24px", borderRadius:20, background:"rgba(100,200,100,.12)",
+          border:"1px solid rgba(100,200,100,.3)", marginBottom:24 }}>
+          <p style={{ fontSize:"1rem", color:"rgba(100,220,100,.8)", letterSpacing:".2em" }}>🎯 練習問題 — 正解発表</p>
+        </div>
+        <p style={{ fontSize:"clamp(1.2rem,3vw,2rem)", color:"rgba(245,234,208,.8)", lineHeight:1.8, maxWidth:800, marginBottom:40, fontFamily:"'Noto Serif JP'" }}>{tq?.text}</p>
+        <div style={{ fontSize:"clamp(6rem,20vw,12rem)", animation:"slideIn .5s ease", color: tq?.answer ? "var(--yes)" : "var(--no)" }}>
+          {tq?.answer === true ? "Yes" : "No"}
+        </div>
+        <p style={{ marginTop:24, color:"rgba(245,234,208,.4)", fontSize:"1rem" }}>4秒後に次へ進みます…</p>
+      </div>
+    );
+  }
+
   // 待機画面
   if (phase === "waiting" || current_q < 0) {
     return (
@@ -889,10 +912,17 @@ export default function App() {
     }
     // 練習問題フェーズ
     if (phase === "trial") {
-      const trialQ = quizState.questions ? quizState.trial_question : null;
       const tq = quizState.trial_question;
       if (tq) {
         return <><Styles /><TrialScreen question={tq} /></>;
+      }
+    }
+
+    // 練習問題正解発表フェーズ
+    if (phase === "trial_revealing") {
+      const tq = quizState.trial_question;
+      if (tq) {
+        return <><Styles /><AnswerRevealScreen question={tq} myAnswer={myAnswers[-2] ?? null} /></>;
       }
     }
 
