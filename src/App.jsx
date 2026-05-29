@@ -110,12 +110,28 @@ function WelcomeScreen({ onJoin, onHost }) {
           QRコードで開いた方はこちら<br/>
           <span style={{ fontSize:".72rem", color:"rgba(245,234,208,.4)" }}>ゲーム中に画面が消えないようにするため</span>
         </p>
-        <a href={window.location.href} target="_blank" rel="noopener noreferrer"
-          style={{ display:"block", textAlign:"center", padding:"10px 16px", borderRadius:8,
+        <button
+          onClick={() => {
+            const url = window.location.href;
+            // iOS/Androidのアプリ内ブラウザからSafari/Chromeで強制的に開く
+            // intent URLでAndroidのChromeを起動
+            const ua = navigator.userAgent;
+            if (/Android/i.test(ua)) {
+              // Androidの場合: intent scheme でChromeを起動
+              const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+              window.location.href = intentUrl;
+              // フォールバック: 通常のリンク
+              setTimeout(() => { window.open(url, '_blank'); }, 500);
+            } else {
+              // iOS・その他: window.openで開く
+              window.open(url, '_blank');
+            }
+          }}
+          style={{ display:"block", width:"100%", textAlign:"center", padding:"10px 16px", borderRadius:8,
             background:"linear-gradient(135deg,var(--gold-d),var(--gold))", color:"#140f05",
-            fontWeight:600, fontSize:".9rem", textDecoration:"none" }}>
+            fontWeight:600, fontSize:".9rem", border:"none", cursor:"pointer", fontFamily:"inherit" }}>
           📱 ブラウザで開く
-        </a>
+        </button>
       </div>
 
       <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300 }}>
