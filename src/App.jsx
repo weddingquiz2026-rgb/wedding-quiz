@@ -103,38 +103,7 @@ function WelcomeScreen({ onJoin, onHost }) {
       <p style={{ color:"rgba(245,234,208,.55)", fontSize:".85rem", marginTop:8, letterSpacing:".2em" }}>ふたりのことを、どれだけ知っていますか？</p>
       <Ornament />
 
-      {/* ブラウザで開くよう案内 */}
-      <div style={{ width:"100%", maxWidth:320, marginBottom:16, padding:"14px 16px", borderRadius:12,
-        background:"rgba(201,168,76,.08)", border:"1px solid rgba(201,168,76,.25)" }}>
-        <p style={{ fontSize:".78rem", color:"rgba(245,234,208,.6)", lineHeight:1.9, textAlign:"center", marginBottom:10 }}>
-          QRコードで開いた方はこちら<br/>
-          <span style={{ fontSize:".72rem", color:"rgba(245,234,208,.4)" }}>ゲーム中に画面が消えないようにするため</span>
-        </p>
-        <button
-          onClick={() => {
-            const url = window.location.href;
-            // iOS/Androidのアプリ内ブラウザからSafari/Chromeで強制的に開く
-            // intent URLでAndroidのChromeを起動
-            const ua = navigator.userAgent;
-            if (/Android/i.test(ua)) {
-              // Androidの場合: intent scheme でChromeを起動
-              const intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
-              window.location.href = intentUrl;
-              // フォールバック: 通常のリンク
-              setTimeout(() => { window.open(url, '_blank'); }, 500);
-            } else {
-              // iOS・その他: window.openで開く
-              window.open(url, '_blank');
-            }
-          }}
-          style={{ display:"block", width:"100%", textAlign:"center", padding:"10px 16px", borderRadius:8,
-            background:"linear-gradient(135deg,var(--gold-d),var(--gold))", color:"#140f05",
-            fontWeight:600, fontSize:".9rem", border:"none", cursor:"pointer", fontFamily:"inherit" }}>
-          📱 ブラウザで開く
-        </button>
-      </div>
-
-      <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300 }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:14, width:"100%", maxWidth:300, marginTop:8 }}>
         <button className="btn btn-gold" style={{ fontSize:"1.05rem", padding:16 }} onClick={onJoin}>Yes/No クイズに参加する</button>
         <button className="btn btn-outline" style={{ fontSize:".8rem" }} onClick={onHost}>進行者はこちら</button>
       </div>
