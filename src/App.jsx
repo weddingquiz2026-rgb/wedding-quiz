@@ -691,11 +691,81 @@ function LiveTab({ quizState, participants }) {
 
 function HostPanel({ quizState, participants }) {
   const [tab, setTab] = useState("setup");
+  const [projStatus, setProjStatus] = useState("idle"); // idle | connecting | connected | error | unsupported
+
+  async function launchProjector() {
+    const projUrl = window.location.origin + window.location.pathname + "?mode=projection";
+
+    // Presentation API対応チェック
+    if (!window.PresentationRequest) {
+      // 非対応ブラウザ: 新しいウィンドウで開くフォールバック
+      setProjStatus("unsupported");
+      const w = window.open(projUrl, "_blank", "noopener");
+      if (w) {
+        setTimeout(() => {
+          try { w.document.documentElement.requestFullscreen?.(); } catch(e) {}
+        }, 1500);
+      }
+      return;
+    }
+
+    try {
+      setProjStatus("connecting");
+      const request = new PresentationRequest([projUrl]);
+      const connection = await request.start();
+      connection.onconnect = () => setProjStatus("connected");
+      connection.onclose = () => setProjStatus("idle");
+      connection.onterminate = () => setProjStatus("idle");
+      setProjStatus("connected");
+    } catch (e) {
+      // ユーザーがキャンセルした場合など
+      setProjStatus("idle");
+    }
+  }
+
+  const projBtnLabel = {
+    idle: "📽️ プロジェクターを起動",
+    connecting: "接続中…",
+    connected: "✅ プロジェクター接続中",
+    error: "⚠ 接続失敗 — 再試行",
+    unsupported: "📽️ 別画面で起動済み",
+  }[projStatus];
+
+  const projBtnColor = projStatus === "connected" || projStatus === "unsupported"
+    ? "rgba(100,200,100,.15)" : "rgba(201,168,76,.08)";
+  const projBtnBorder = projStatus === "connected" || projStatus === "unsupported"
+    ? "1px solid rgba(100,200,100,.4)" : "1px solid var(--gold-d)";
+
   return (
     <div style={{ maxWidth:680, margin:"0 auto", padding:"24px 16px 48px" }}>
-      <div style={{ display:"flex", alignItems:"center", marginBottom:24 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12 }}>
         <h1 className="gold" style={{ fontFamily:"'Cormorant Garamond'", fontSize:"1.8rem", fontWeight:300 }}>🎩 進行者パネル</h1>
+        <button
+          onClick={launchProjector}
+          disabled={projStatus === "connecting" || projStatus === "connected"}
+          style={{
+            cursor: projStatus === "connected" ? "default" : "pointer",
+            border: projBtnBorder,
+            borderRadius: 8,
+            background: projBtnColor,
+            color: projStatus === "connected" || projStatus === "unsupported" ? "rgba(100,220,100,.9)" : "var(--gold)",
+            fontFamily: "inherit",
+            fontSize: ".82rem",
+            padding: "8px 16px",
+            transition: "all .2s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {projBtnLabel}
+        </button>
       </div>
+      {projStatus === "unsupported" && (
+        <div style={{ marginBottom:16, padding:"10px 14px", borderRadius:8, background:"rgba(100,200,100,.06)", border:"1px solid rgba(100,200,100,.2)", fontSize:".78rem", color:"rgba(245,234,208,.6)", lineHeight:1.8 }}>
+          💡 このブラウザはPresentation APIに対応していません。別タブで投影画面を開きました。<br/>
+          そのタブをプロジェクター側に移動してフルスクリーン（F11）にしてください。
+        </div>
+      )}
+      
       <div style={{ display:"flex", marginBottom:24, border:"1px solid var(--gold-d)", borderRadius:10, overflow:"hidden" }}>
         {[["setup","① 事前設定"],["live","② 当日進行"]].map(([key,label])=>(
           <button key={key} onClick={()=>setTab(key)} style={{ flex:1, cursor:"pointer", border:"none",
